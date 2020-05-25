@@ -119,26 +119,6 @@ Performance (the first row is the default config for each module. Empty entries 
 
 ## Module Performance on MultiWOZ
 
-### NLU
-
-By running `convlab2/nlu/evaluate.py MultiWOZ $model all`:
-
-|         | Precision | Recall | F1    |
-| ------- | --------- | ------ | ----- |
-| BERTNLU | 82.48     | 85.59  | 84.01 |
-| MILU    | 80.29     | 83.63  | 81.92 |
-| SVMNLU  | 74.96     | 50.74  | 60.52 |
-
-### DST 
-
-By running `convlab2/dst/evaluate.py MultiWOZ $model`:
-
-|             |  Joint accuracy  | Slot accuracy | Joint F1  |
-| --------    |   -------------   | -------------  | --------|
-|  MDBT       |   0.06           |      0.89       | 0.43    |
-|  SUMBT      |    0.30         |       0.96       | 0.83    |
-|   TRADE     |    0.40         |       0.96       | 0.84    |
-
 ### Policy
 
 By running `convlab2/policy/evalutate.py --model_name $model`
@@ -149,50 +129,8 @@ By running `convlab2/policy/evalutate.py --model_name $model`
 | PG        | 0.54              |
 | PPO       | 0.74              |
 | GDPL      | 0.58              |
-
-### NLG
-
-By running `convlab2/nlg/evaluate.py MultiWOZ $model sys`
-
-|          | corpus BLEU-4 |
-| -------- | ------------- |
-| Template | 0.3309        |
-| SCLSTM   | 0.4884        |
-
-## Issues
-
-You are welcome to create an issue if you want to request a feature, report a bug or ask a general question.
-
-## Contributions
-
-We welcome contributions from community.
-
-- If you want to make a big change, we recommend first creating an issue with your design.
-- Small contributions can be directly made by a pull request.
-- If you like make contributions to our library, see issues to find what we need.
-
-## Team
-
-**ConvLab-2** is maintained and developed by Tsinghua University Conversational AI group (THU-coai) and Microsoft Research (MSR).
-
-We would like to thank:
-
-Yan Fang, Zhuoer Feng, Jianfeng Gao, Qihan Guo, Kaili Huang, Minlie Huang, Sungjin Lee, Bing Li, Jinchao Li, Xiang Li, Xiujun Li, Wenchang Ma, Baolin Peng, Runze Liang, Ryuichi Takanobu, Jiaxin Wen, Yaoqin Zhang, Zheng Zhang, Qi Zhu, Xiaoyan Zhu.
+| PG+MLE    |                   |
+| PPO+MLE   |                   |
+| GDPL+MLE  |                   |
 
 
-## Citing
-
-If you use ConvLab-2 in your research, please cite:
-
-```
-@inproceedings{zhu2020convlab2,
-    title={ConvLab-2: An Open-Source Toolkit for Building, Evaluating, and Diagnosing Dialogue Systems},
-    author={Qi Zhu and Zheng Zhang and Yan Fang and Xiang Li and Ryuichi Takanobu and Jinchao Li and Baolin Peng and Jianfeng Gao and Xiaoyan Zhu and Minlie Huang},
-    year={2020},
-    booktitle={Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics},
-}
-```
-
-## License
-
-Apache License 2.0

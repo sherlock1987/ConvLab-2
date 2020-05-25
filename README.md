@@ -1,39 +1,6 @@
 # ConvLab-2
 **ConvLab-2** is an open-source toolkit that enables researchers to build task-oriented dialogue systems with state-of-the-art models, perform an end-to-end evaluation, and diagnose the weakness of systems. As the successor of [ConvLab](https://github.com/ConvLab/ConvLab), ConvLab-2 inherits ConvLab's framework but integrates more powerful dialogue models and supports more datasets. Besides, we have developed an analysis tool and an interactive tool to assist researchers in diagnosing dialogue systems. [[paper]](https://arxiv.org/abs/2002.04793)
 
-- [Installation](#installation)
-- [Tutorials](#tutorials)
-- [Models](#models)
-- [Supported Dataset](#Supported-Dataset)
-- [End-to-end Performance on MultiWOZ](#End-to-end-Performance-on-MultiWOZ)
-- [Module Performance on MultiWOZ](#Module-Performance-on-MultiWOZ)
-- [Issues](#issues)
-- [Contributions](#contributions)
-- [Citing](#citing)
-- [License](#license)
-
-## Installation
-
-Require python 3.6.
-
-Clone this repository:
-```bash
-git clone https://github.com/thu-coai/ConvLab-2.git
-```
-
-Install ConvLab-2 via pip:
-
-```bash
-cd ConvLab-2
-pip install -e .
-```
-
-## Tutorials
-
-- [Getting Started](https://github.com/thu-coai/ConvLab-2/blob/master/tutorials/Getting_Started.ipynb) (Have a try on [Colab](https://colab.research.google.com/github/thu-coai/ConvLab-2/blob/master/tutorials/Getting_Started.ipynb)!)
-- [Add New Model](https://github.com/thu-coai/ConvLab-2/blob/master/tutorials/Add_New_Model.md)
-- [Train RL Policies](https://github.com/thu-coai/ConvLab-2/blob/master/tutorials/Train_RL_Policies)
-- [Interactive Tool](https://github.com/thu-coai/ConvLab-2/blob/master/deploy) [[demo video]](https://drive.google.com/file/d/1HR3mjhgLL0g9IbqU443NsH2G0-PpAsog/view?usp=sharing)
 
 ## Models
 
@@ -45,8 +12,6 @@ We provide following models:
 - Simulator policy: Agenda, VHUS
 - NLG: Template, SCLSTM
 - End2End: Sequicity, DAMD, RNN_rollout
-
-For  more details about these models, You can refer to `README.md` under `convlab2/$module/$model/$dataset` dir such as `convlab2/nlu/jointBERT/multiwoz/README.md`.
 
 ## Supported Datasets
 

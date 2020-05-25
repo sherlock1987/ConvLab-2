@@ -95,7 +95,7 @@ By running `convlab2/policy/evalutate.py --model_name $model`
 | PPO       | 0.74              |
 | GDPL      | 0.58              |
 | PG+MLE    |                   |
-| PPO+MLE   |                   |
+| PPO+MLE   | 0.56              | 20 epoch, after 20, it will overfitting, cause the bz size, it will have something different
 | GDPL+MLE  |                   |
 
 

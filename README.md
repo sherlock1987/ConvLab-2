@@ -97,5 +97,6 @@ By running `convlab2/policy/evalutate.py --model_name $model`
 
 
 20 epoch, after 20, it will overfitting, cause the bz size, it will have something different
+when I set the process to be 5, the epoch = 4, result = 0.49, worse.
 
 

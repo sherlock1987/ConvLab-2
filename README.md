@@ -88,14 +88,15 @@ Performance (the first row is the default config for each module. Empty entries 
 
 By running `convlab2/policy/evalutate.py --model_name $model`
 
-|           | Task Success Rate |
+|           | Task Success Rate |epoch 4  batchsz 512 process_num 4| epoch 20          | 
 | --------- | ----------------- |
-| MLE       | 0.56              |
-| PG        | 0.54              |
-| PPO       | 0.74              |
-| GDPL      | 0.58              |
-| PG+MLE    |                   |
-| PPO+MLE   | 0.56              | 20 epoch, after 20, it will overfitting, cause the bz size, it will have something different
-| GDPL+MLE  |                   |
+| MLE       | 0.56              |                   |                   | 
+| PG        | 0.54              |                   |                   | 
+| PPO       | 0.74              |                   |                   | 
+| GDPL      | 0.58              |                   |                   | 
+| PG+MLE    |                   |                   |                   | 
+| PPO+MLE   | 0.56              | 0.52              | 0.56              | 
+| GDPL+MLE  |                   | 0.52              | 0.56              | 
+20 epoch, after 20, it will overfitting, cause the bz size, it will have something different
 
 

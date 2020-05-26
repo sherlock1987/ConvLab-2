@@ -1,6 +1,3 @@
-# ConvLab-2
-**ConvLab-2** is an open-source toolkit that enables researchers to build task-oriented dialogue systems with state-of-the-art models, perform an end-to-end evaluation, and diagnose the weakness of systems. As the successor of [ConvLab](https://github.com/ConvLab/ConvLab), ConvLab-2 inherits ConvLab's framework but integrates more powerful dialogue models and supports more datasets. Besides, we have developed an analysis tool and an interactive tool to assist researchers in diagnosing dialogue systems. [[paper]](https://arxiv.org/abs/2002.04793)
-
 
 ## Models
 
@@ -88,8 +85,8 @@ Performance (the first row is the default config for each module. Empty entries 
 
 By running `convlab2/policy/evalutate.py --model_name $model`
 
-|           | Task Success Rate |epoch 4  batchsz 512 process_num 4| epoch 20          | 
-| --------- | ----------------- |
+|           | Task Success Rate |epoch 4            | epoch 20          | 
+| --------- | ----------------- | ----------------- | ----------------- |
 | MLE       | 0.56              |                   |                   | 
 | PG        | 0.54              |                   |                   | 
 | PPO       | 0.74              |                   |                   | 

@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 from torch import optim
+from torch import tensor
 import numpy as np
 import logging
 import os
@@ -13,12 +14,34 @@ from convlab2.policy.vector.vector_multiwoz import MultiWozVector
 from convlab2.util.file_util import cached_path
 import zipfile
 import sys
+import matplotlib.pyplot  as plt
 
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 sys.path.append(root_dir)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+class Reward_predict(nn.Module):
+
+    def __init__(self,input_size, hidden_size):
+        super(Reward_predict,self).__init__()
+        self.cnn = nn.Linear(input_size, hidden_size, bias=True)
+        self.encoder = nn.LSTM(hidden_size,hidden_size,batch_first=True,bidirectional=False)
+        self.cnn2 = nn.Linear(hidden_size,hidden_size,bias=True)
+        self.loss = nn.CosineEmbeddingLoss()
+
+    def forward(self, input,target):
+        # to construct the batch first, then we could compute the loss function for this stuff, simple and easy.
+        feature_input = self.cnn(input)
+        _, (predictor_vec, last_cell) = self.encoder(feature_input)
+        loss = self.loss(predictor_vec,target,target=torch.tensor(1))
+        return loss
+
+    def target_extract(self,target):
+        with torch.no_grad():
+            feature_target = self.cnn(target)
+            _, (encoded_target, last_cell) = self.encoder(feature_target)
+            return encoded_target
 
 class PG(Policy):
     def __init__(self, is_train=False, dataset='Multiwoz'):
@@ -42,6 +65,11 @@ class PG(Policy):
         # self.policy = MultiDiscretePolicy(self.vector.state_dim, cfg['h_dim'], self.vector.da_dim).to(device=DEVICE)
         if is_train:
             self.policy_optim = optim.RMSprop(self.policy.parameters(), lr=cfg['lr'])
+
+        # define the predictor params
+        self.predictor_reward = Reward_predict(549,457)
+        self.optim_reward = optim.Adam(self.predictor_reward.parameters(), lr=1e-1 )
+        self.loss_record = []
 
     def predict(self, state):
         """
@@ -93,50 +121,86 @@ class PG(Policy):
         # generate a sequence of this one, it is fine for me
         v_target = self.est_return(r, mask)
 
-        # find the index
-        index = mask.find(0)
-        print(index)
+        # from mask to do the divide and get the index
+        batch_index = []
+        temp = []
+        for index, ele in enumerate(mask.numpy()):
+            if ele == 0:
+                temp.append(index)
+                batch_index.append(temp)
+                temp = []
+            else:
+                temp.append(index)
+
         for i in range(self.update_round):
+            for iteration in batch_index:
+                loss = torch.tensor([0]).float()
+                # starting looping and make the sum of loss.
+                print("-" * 30,len(iteration))
+                for index, _ in enumerate(iteration):
+                    temp = iteration[:index + 1]
+                    if len(temp) >= 4:
+                        # start training
+                        s_b = s[temp].float()
+                        a_b = a[temp].float()
+                        input = torch.cat((s_b[:-1], a_b[:-1]), -1).unsqueeze(0)
+                        target = torch.cat((s_b[-1], a_b[-1]), -1).unsqueeze(0).unsqueeze(0)
+                        target = self.predictor_reward.target_extract(target)
 
-            # 1. shuffle current batch
-            perm = torch.randperm(batchsz)
-            # shuffle the variable for mutliple optimize
-            # v_target_shuf, s_shuf, a_shuf = v_target[perm], s[perm], a[perm]
-            v_target_shuf, s_shuf, a_shuf = v_target, s, a
-            # 2. get mini-batch for optimizing
-            optim_chunk_num = int(np.ceil(batchsz / self.optim_batchsz))
-            # chunk the optim_batch for total batch
-            v_target_shuf, s_shuf, a_shuf = torch.chunk(v_target_shuf, optim_chunk_num), \
-                                            torch.chunk(s_shuf, optim_chunk_num), \
-                                            torch.chunk(a_shuf, optim_chunk_num)
-
-            # 3. iterate all mini-batch to optimize
-            policy_loss = 0.
-            for v_target_b, s_b, a_b in zip(v_target_shuf, s_shuf, a_shuf):
-                # print('optim:', batchsz, v_target_b.size(), A_sa_b.size(), s_b.size(), a_b.size(), log_pi_old_sa_b.size())
-
-                # update policy network by clipping
-                self.policy_optim.zero_grad()
-                # [b, 1]
-                log_pi_sa = self.policy.get_log_prob(s_b, a_b)
-                # ratio = exp(log_Pi(a|s) - log_Pi_old(a|s)) = Pi(a|s) / Pi_old(a|s)
-                # we use log_pi for stability of numerical operation
-                # [b, 1] => [b]
-                # this is element-wise comparing.
-                # we add negative symbol to convert gradient ascent to gradient descent
-                surrogate = - (log_pi_sa * v_target_b).mean()
-                policy_loss += surrogate.item()
-
-                # backprop
-                surrogate.backward()
-                # gradient clipping, for stability
-                torch.nn.utils.clip_grad_norm(self.policy.parameters(), 10)
-                # self.lock.acquire() # retain lock to update weights
-                self.policy_optim.step()
-                # self.lock.release() # release lock
-
-            policy_loss /= optim_chunk_num
-            logging.debug('<<dialog policy pg>> epoch {}, iteration {}, policy, loss {}'.format(epoch, i, policy_loss))
+                        micro_loss = self.predictor_reward(input, target)
+                        # print(micro_loss)
+                        loss += micro_loss
+                # backwarding...
+                if loss != torch.tensor([0]).float():
+                    print(loss,loss.shape)
+                    loss.backward()
+                    for name,param in self.predictor_reward.named_parameters():
+                        if "cnn" not in name:
+                            # print(name)
+                            # print(param.grad)
+                            pass
+                    self.optim_reward.step()
+                    self.predictor_reward.zero_grad()
+                    self.loss_record.append(loss.item())
+            # # 1. shuffle current batch
+            # perm = torch.randperm(batchsz)
+            # # shuffle the variable for mutliple optimize
+            # # v_target_shuf, s_shuf, a_shuf = v_target[perm], s[perm], a[perm]
+            # v_target_shuf, s_shuf, a_shuf = v_target, s, a
+            # # 2. get mini-batch for optimizing
+            # optim_chunk_num = int(np.ceil(batchsz / self.optim_batchsz))
+            # # chunk the optim_batch for total batch
+            # v_target_shuf, s_shuf, a_shuf = torch.chunk(v_target_shuf, optim_chunk_num), \
+            #                                 torch.chunk(s_shuf, optim_chunk_num), \
+            #                                 torch.chunk(a_shuf, optim_chunk_num)
+            #
+            # # 3. iterate all mini-batch to optimize
+            # policy_loss = 0.
+            # for v_target_b, s_b, a_b in zip(v_target_shuf, s_shuf, a_shuf):
+            #     # print('optim:', batchsz, v_target_b.size(), A_sa_b.size(), s_b.size(), a_b.size(), log_pi_old_sa_b.size())
+            #
+            #     # update policy network by clipping
+            #     self.policy_optim.zero_grad()
+            #     # [b, 1]
+            #     log_pi_sa = self.policy.get_log_prob(s_b, a_b)
+            #     # ratio = exp(log_Pi(a|s) - log_Pi_old(a|s)) = Pi(a|s) / Pi_old(a|s)
+            #     # we use log_pi for stability of numerical operation
+            #     # [b, 1] => [b]
+            #     # this is element-wise comparing.
+            #     # we add negative symbol to convert gradient ascent to gradient descent
+            #     surrogate = - (log_pi_sa * v_target_b).mean()
+            #     policy_loss += surrogate.item()
+            #
+            #     # backprop
+            #     surrogate.backward()
+            #     # gradient clipping, for stability
+            #     torch.nn.utils.clip_grad_norm(self.policy.parameters(), 10)
+            #     # self.lock.acquire() # retain lock to update weights
+            #     self.policy_optim.step()
+            #     # self.lock.release() # release lock
+            #
+            # policy_loss /= optim_chunk_num
+            # logging.debug('<<dialog policy pg>> epoch {}, iteration {}, policy, loss {}'.format(epoch, i, policy_loss))
 
         if (epoch + 1) % self.save_per_epoch == 0:
             self.save(self.save_dir, epoch)
@@ -145,9 +209,15 @@ class PG(Policy):
         if not os.path.exists(directory):
             os.makedirs(directory)
 
-        torch.save(self.policy.state_dict(), directory + '/' + str(epoch) + '_pg.pol.mdl')
+        # torch.save(self.policy.state_dict(), directory + '/' + str(epoch) + '_pg.pol.mdl')
+        torch.save(self.predictor_reward.state_dict(), directory + '/' + str(epoch) + '_pg.pol.mdl')
 
         logging.info('<<dialog policy>> epoch {}: saved network to mdl'.format(epoch))
+        axis = [i for i in range(len(self.loss_record))]
+        plt.plot(axis,self.loss_record)
+        plt.xlabel('Number of dialogue turns')
+        plt.ylabel('Embedding Loss')
+        plt.show()
 
     def load(self, filename):
         policy_mdl_candidates = [

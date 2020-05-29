@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import torch
+import torch.nn as nn
 from torch import optim
 import numpy as np
 import logging
@@ -20,7 +21,6 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class PG(Policy):
-
     def __init__(self, is_train=False, dataset='Multiwoz'):
         with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json'), 'r') as f:
             cfg = json.load(f)
@@ -90,16 +90,19 @@ class PG(Policy):
         return v_target
 
     def update(self, epoch, batchsz, s, a, r, mask):
-
+        # generate a sequence of this one, it is fine for me
         v_target = self.est_return(r, mask)
 
+        # find the index
+        index = mask.find(0)
+        print(index)
         for i in range(self.update_round):
 
             # 1. shuffle current batch
             perm = torch.randperm(batchsz)
             # shuffle the variable for mutliple optimize
-            v_target_shuf, s_shuf, a_shuf = v_target[perm], s[perm], a[perm]
-
+            # v_target_shuf, s_shuf, a_shuf = v_target[perm], s[perm], a[perm]
+            v_target_shuf, s_shuf, a_shuf = v_target, s, a
             # 2. get mini-batch for optimizing
             optim_chunk_num = int(np.ceil(batchsz / self.optim_batchsz))
             # chunk the optim_batch for total batch

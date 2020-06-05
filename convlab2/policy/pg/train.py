@@ -78,6 +78,7 @@ def sampler(pid, queue, evt, env, policy, batchsz):
             if done:
                 break
 
+
         # this is end of one trajectory
         sampled_num += real_traj_len
         sampled_traj_num += 1

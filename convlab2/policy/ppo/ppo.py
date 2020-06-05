@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import torch
 from torch import optim
+from torch import tensor
 import numpy as np
 import logging
 import os
@@ -12,6 +13,9 @@ from convlab2.policy.vector.vector_multiwoz import MultiWozVector
 from convlab2.util.file_util import cached_path
 import zipfile
 import sys
+
+from convlab2.policy.mle.idea2_predict_next_action import Reward_predict
+from convlab2.policy.mle.idea_3_max_margin import Reward_max
 
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 sys.path.append(root_dir)
@@ -47,7 +51,11 @@ class PPO(Policy):
         if is_train:
             self.policy_optim = optim.RMSprop(self.policy.parameters(), lr=cfg['policy_lr'])
             self.value_optim = optim.Adam(self.value.parameters(), lr=cfg['value_lr'])
-        
+
+        self.reward_predictor = Reward_predict(549, 457, 209)
+        self.reward_optim = optim.Adam(self.reward_predictor.parameters(), lr=1e-4)
+        self.loss_record = []
+
     def predict(self, state):
         """
         Predict an system action given state.
@@ -58,7 +66,7 @@ class PPO(Policy):
         """
         s_vec = torch.Tensor(self.vector.state_vectorize(state))
         a = self.policy.select_action(s_vec.to(device=DEVICE), False).cpu()
-        action = self.vector.action_devectorize(a.numpy())
+        action = self.vector.action_devectorize(a.detach().numpy())
         state['system_action'] = action
         return action
 
@@ -67,7 +75,7 @@ class PPO(Policy):
         Restore after one session
         """
         pass
-    
+
     def est_adv(self, r, v, mask):
         """
         we save a trajectory in continuous space and it reaches the ending of current trajectory when mask=0.
@@ -111,17 +119,72 @@ class PPO(Policy):
         A_sa = (A_sa - A_sa.mean()) / A_sa.std()
 
         return A_sa, v_target
-    
+
+    def reward_estimate(self, r, v, s, a, mask):
+        """
+        we save a trajectory in continuous space and it reaches the ending of current trajectory when mask=0.
+        :param r: reward, Tensor, [b]
+        :param v: estimated value, Tensor, [b]
+        :param mask: indicates ending for 0 otherwise 1, Tensor, [b]
+        :return: A(s, a), V-target(s), both Tensor
+        """
+        reward_predict = []
+        batchsz = r.shape[0]
+        s_temp = torch.tensor([])
+        a_temp = torch.tensor([])
+        for i in range(batchsz):
+            # current　states and actions
+            s_1 = s[i].unsqueeze(0)
+            a_1 = a[i].unsqueeze(0)
+            try:
+                s_temp = torch.cat((s_temp, s_1), 0)
+                a_temp = torch.cat((a_temp, a_1), 0)
+            except Exception as e:
+                s_temp = s_1
+                a_temp = a_1
+
+            s_train = s_temp.unsqueeze(0).float()
+            a_train = a_temp.unsqueeze(0).float()
+            input = torch.cat((s_train, a_train), 2)
+            # input_bf = s_train[-1].unsqueeze(0)
+            # target = a_train[-1].unsqueeze(0)
+            # 长度大于2 的话呢.
+            if len(input[0]) >= 2:
+                input_pre = input.squeeze(0)[:-1].unsqueeze(0)
+                input_bf = s_train.squeeze(0)[-1].unsqueeze(0).unsqueeze(0)
+                target = a_train.squeeze(0)[-1].unsqueeze(0).unsqueeze(0)
+                # print(input_pre.shape,input_bf.shape,target.shape)
+                if int(mask[i]) == 0:
+                    # for the last one, the reward should follow the system.
+                    cur_reward = r[i]
+                    s_temp = torch.tensor([])
+                    a_temp = torch.tensor([])
+                #   compute the last one, terminate clear the button, that is okay for us.
+                else:
+                    with torch.no_grad():
+                        cur_reward = self.reward_predictor.compute_reward(input_pre, input_bf, target)
+                reward_predict.append(cur_reward.item())
+            else:
+                #             when the lengh is 1, the start reward is 1
+                reward_predict.append(1)
+        # add the bellman equation
+        reward_bell_man = self.reward_predictor.bellman_equation(tensor(reward_predict), mask, self.gamma)
+        A_sa, v_target = self.est_adv(r, v, mask)
+        return A_sa, reward_bell_man
+
     def update(self, epoch, batchsz, s, a, r, mask):
         # get estimated V(s) and PI_old(s, a)
         # actually, PI_old(s, a) can be saved when interacting with env, so as to save the time of one forward elapsed
         # v: [b, 1] => [b]
         v = self.value(s).squeeze(-1).detach()
         log_pi_old_sa = self.policy.get_log_prob(s, a).detach()
-        
+
         # estimate advantage and v_target according to GAE and Bellman Equation
-        A_sa, v_target = self.est_adv(r, v, mask)
-        
+        # leave the V alone, just forget about it.
+
+        # A_sa, v_target = self.est_adv(r, v, mask)
+        A_sa, v_target = self.reward_estimate(r, v, s, a, mask)
+
         for i in range(self.update_round):
 
             # 1. shuffle current batch
@@ -149,7 +212,7 @@ class PPO(Policy):
                 v_b = self.value(s_b).squeeze(-1)
                 loss = (v_b - v_target_b).pow(2).mean()
                 value_loss += loss.item()
-                
+
                 # backprop
                 loss.backward()
                 # nn.utils.clip_grad_norm(self.value.parameters(), 4)
@@ -186,15 +249,15 @@ class PPO(Policy):
                 # self.lock.acquire() # retain lock to update weights
                 self.policy_optim.step()
                 # self.lock.release() # release lock
-            
+
             value_loss /= optim_chunk_num
             policy_loss /= optim_chunk_num
             logging.debug('<<dialog policy ppo>> epoch {}, iteration {}, value, loss {}'.format(epoch, i, value_loss))
             logging.debug('<<dialog policy ppo>> epoch {}, iteration {}, policy, loss {}'.format(epoch, i, policy_loss))
 
-        if (epoch+1) % self.save_per_epoch == 0:
+        if (epoch + 1) % self.save_per_epoch == 0:
             self.save(self.save_dir, epoch)
-    
+
     def save(self, directory, epoch):
         if not os.path.exists(directory):
             os.makedirs(directory)
@@ -203,7 +266,7 @@ class PPO(Policy):
         torch.save(self.policy.state_dict(), directory + '/' + str(epoch) + '_ppo.pol.mdl')
 
         logging.info('<<dialog policy>> epoch {}: saved network to mdl'.format(epoch))
-    
+
     def load(self, filename):
         value_mdl_candidates = [
             filename + '.val.mdl',
@@ -216,7 +279,7 @@ class PPO(Policy):
                 self.value.load_state_dict(torch.load(value_mdl, map_location=DEVICE))
                 logging.info('<<dialog policy>> loaded checkpoint from file: {}'.format(value_mdl))
                 break
-        
+
         policy_mdl_candidates = [
             filename + '.pol.mdl',
             filename + '_ppo.pol.mdl',
@@ -227,6 +290,22 @@ class PPO(Policy):
             if os.path.exists(policy_mdl):
                 self.policy.load_state_dict(torch.load(policy_mdl, map_location=DEVICE))
                 logging.info('<<dialog policy>> loaded checkpoint from file: {}'.format(policy_mdl))
+                break
+
+    def load_reward_model(self, filename):
+        policy_mdl_candidates = [
+            filename,
+            filename + '.pol.mdl',
+            filename + '_pg.pol.mdl',
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), filename),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), filename + '.pol.mdl'),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), filename + '_pg.pol.mdl')
+        ]
+        for policy_mdl in policy_mdl_candidates:
+            if os.path.exists(policy_mdl):
+                network = torch.load(policy_mdl)
+                self.reward_predictor.load_state_dict(torch.load(policy_mdl, map_location=DEVICE))
+                logging.info('<<dialog policy>> loaded reward model checkpoint from file: {}'.format(policy_mdl))
                 break
 
     def load_from_pretrained(self, archive_file, model_file, filename):

@@ -4,7 +4,9 @@ import logging
 import json
 import sys
 from torch import nn
-root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+
+root_dir = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 sys.path.append(root_dir)
 
 from convlab2.policy.rlmodule import MultiDiscretePolicy
@@ -15,6 +17,8 @@ from convlab2.util.train_util import init_logging_handler
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
+# to use the stuff from other resources.
 class MLE_Trainer(MLE_Trainer_Abstract):
     def __init__(self, manager, cfg):
         self._init_data(manager, cfg)
@@ -26,7 +30,10 @@ class MLE_Trainer(MLE_Trainer_Abstract):
         self.multi_entropy_loss = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
         self.policy = MultiDiscretePolicy(vector.state_dim, cfg['h_dim'], vector.da_dim).to(device=DEVICE)
         self.policy.eval()
-        self.policy_optim = torch.optim.RMSprop(self.policy.parameters(), lr=cfg['lr'], weight_decay=cfg['weight_decay'])
+        self.policy_optim = torch.optim.RMSprop(self.policy.parameters(), lr=cfg['lr'],
+                                                weight_decay=cfg['weight_decay'])
+        # define for training
+
 
 if __name__ == '__main__':
     manager = ActMLEPolicyDataLoaderMultiWoz()
@@ -34,10 +41,11 @@ if __name__ == '__main__':
         cfg = json.load(f)
     init_logging_handler(cfg['log_dir'])
     agent = MLE_Trainer(manager, cfg)
-    
+
     logging.debug('start training')
-    
+
     best = float('inf')
     for e in range(cfg['epoch']):
-        agent.imitating(e)
-        best = agent.imit_test(e, best)
+        # agent.imitating(e)
+        # best = agent.imit_test(e, best)
+        agent.reward_training(e)

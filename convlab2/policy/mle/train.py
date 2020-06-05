@@ -6,12 +6,16 @@ import numpy as np
 from convlab2.util.train_util import to_device
 import torch.nn as nn
 from torch import optim
+
 import zipfile
 import sys
 import matplotlib.pyplot  as plt
 import pickle
+
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 import torch.tensor as tensor
+
+
 class Reward_predict(nn.Module):
     def __init__(self, input_size, hidden_size, output_size):
         super(Reward_predict, self).__init__()
@@ -19,9 +23,10 @@ class Reward_predict(nn.Module):
         self.encoder_2 = nn.LSTM(output_size, output_size)
 
         self.m = nn.Sigmoid()
-        self.loss = nn.BCELoss(size_average= False,reduce= True)
-        self.cnn_belief = nn.Linear(input_size-output_size,output_size)
-        self.cnn_output = nn.Linear(output_size,output_size)
+        self.loss = nn.BCELoss(size_average=False, reduce=True)
+        self.cnn_belief = nn.Linear(input_size - output_size, output_size)
+        self.cnn_output = nn.Linear(output_size, output_size)
+
     def forward(self, input_feature, input_belief, target):
         # to construct the batch first, then we could compute the loss function for this stuff, simple and easy.
         _, (last_hidden, last_cell) = self.encoder_1(input_feature)
@@ -29,8 +34,9 @@ class Reward_predict(nn.Module):
 
         _, (predict_action, last_cell) = self.encoder_2(self.cnn_belief(input_belief), (last_hidden, last_cell))
 
-        loss = self.loss(self.m(self.cnn_output(predict_action)),target)
+        loss = self.loss(self.m(self.cnn_output(predict_action)), target)
         return loss
+
 
 class MLE_Trainer_Abstract():
     def __init__(self, manager, cfg):
@@ -39,7 +45,6 @@ class MLE_Trainer_Abstract():
         self.policy_optim = None
 
         # define the stuff from the reward machine
-
 
     def _init_data(self, manager, cfg):
         self.data_train = manager.create_dataset('train', cfg['batchsz'])
@@ -52,10 +57,11 @@ class MLE_Trainer_Abstract():
         self.loss_record = []
         self.reward_predictor = Reward_predict(549, 457, 209)
         self.reward_optim = optim.Adam(self.reward_predictor.parameters(), lr=1e-4)
-    #    init the terminate state and use if when training our model.
+        #    init the terminate state and use if when training our model.
         self.terminate_train = {}
         for part in ['train', 'val', 'test']:
-            with open(os.path.join("//home//raliegh//图片//ConvLab-2//convlab2//policy//mle//multiwoz//processed_data", '{}_terminate.pkl'.format(part)), 'rb') as f:
+            with open(os.path.join("//home//raliegh//图片//ConvLab-2//convlab2//policy//mle//multiwoz//processed_data",
+                                   '{}_terminate.pkl'.format(part)), 'rb') as f:
                 self.terminate_train[part] = pickle.load(f)
 
     def policy_loop(self, data):
@@ -65,18 +71,18 @@ class MLE_Trainer_Abstract():
         loss_a = self.multi_entropy_loss(a_weights, target_a)
         return loss_a
 
-    def reward_training(self,epoch):
+    def reward_training(self, epoch):
         self.reward_predictor.train()
         s_temp = torch.tensor([])
         a_temp = torch.tensor([])
         loss = torch.tensor([0]).float()
 
-        for i,data in enumerate(self.data_train):
+        for i, data in enumerate(self.data_train):
             s, a = to_device(data)
             # s_temp = s[:i+1]
             try:
-                s_temp = torch.cat((s_temp,s),0)
-                a_temp = torch.cat((a_temp,a),0)
+                s_temp = torch.cat((s_temp, s), 0)
+                a_temp = torch.cat((a_temp, a), 0)
             except Exception as e:
                 s_temp = s
                 a_temp = a
@@ -84,9 +90,10 @@ class MLE_Trainer_Abstract():
             s_train = s_temp.unsqueeze(0)
             a_train = a_temp.unsqueeze(0)
             # print(s_train.shape)
-            if len(s_train[0])>=2:
+            s_train_np = np.array(s_train)
+            if len(s_train[0]) >= 2:
                 # print("-"*300)
-                input_pre = torch.cat((s_train,a_train),2)[0][:-1].unsqueeze(0)
+                input_pre = torch.cat((s_train, a_train), 2)[0][:-1].unsqueeze(0)
                 input_bf = s_train[0][-1].unsqueeze(0).unsqueeze(0)
                 target = a_train[0][-1].unsqueeze(0).unsqueeze(0)
                 # print(input_pre.shape,input_bf.shape,target.shape)
@@ -115,7 +122,7 @@ class MLE_Trainer_Abstract():
                         s_temp = torch.tensor([])
                         a_temp = torch.tensor([])
                         loss = torch.tensor([0]).float()
-    #         remember to save the model
+        #         remember to save the model
 
         if (epoch + 1) % self.save_per_epoch == 0:
             self.reward_model_save(self.save_dir, epoch)
@@ -124,13 +131,13 @@ class MLE_Trainer_Abstract():
             plt.xlabel('Number of turns')
             plt.ylabel('Embedding Loss')
             plt.show()
+
     def imitating(self, epoch):
         """
         pretrain the policy by simple imitation learning (behavioral cloning)
         """
         self.policy.train()
         a_loss = 0.
-        count = 0
         for i, data in enumerate(self.data_train):
             terminate = self.terminate_train["train"][i]
             self.policy_optim.zero_grad()
@@ -138,16 +145,16 @@ class MLE_Trainer_Abstract():
             a_loss += loss_a.item()
             loss_a.backward()
             self.policy_optim.step()
-            
-            if (i+1) % self.print_per_batch == 0:
+
+            if (i + 1) % self.print_per_batch == 0:
                 a_loss /= self.print_per_batch
                 logging.debug('<<dialog policy>> epoch {}, iter {}, loss_a:{}'.format(epoch, i, a_loss))
                 a_loss = 0.
-        
-        if (epoch+1) % self.save_per_epoch == 0:
+
+        if (epoch + 1) % self.save_per_epoch == 0:
             self.save(self.save_dir, epoch)
         self.policy.eval()
-    
+
     def imit_test(self, epoch, best):
         """
         provide an unbiased evaluation of the policy fit on the training dataset
@@ -156,19 +163,19 @@ class MLE_Trainer_Abstract():
         for i, data in enumerate(self.data_valid):
             loss_a = self.policy_loop(data)
             a_loss += loss_a.item()
-            
+
         a_loss /= len(self.data_valid)
         logging.debug('<<dialog policy>> validation, epoch {}, loss_a:{}'.format(epoch, a_loss))
         if a_loss < best:
             logging.info('<<dialog policy>> best model saved')
             best = a_loss
             self.save(self.save_dir, 'best')
-            
+
         a_loss = 0.
         for i, data in enumerate(self.data_test):
             loss_a = self.policy_loop(data)
             a_loss += loss_a.item()
-            
+
         a_loss /= len(self.data_test)
         logging.debug('<<dialog policy>> test, epoch {}, loss_a:{}'.format(epoch, a_loss))
         return best
@@ -187,7 +194,7 @@ class MLE_Trainer_Abstract():
                 if item not in real:
                     FP += 1
             return TP, FP, FN
-    
+
         a_TP, a_FP, a_FN = 0, 0, 0
         for i, data in enumerate(self.data_test):
             s, target_a = to_device(data)
@@ -197,7 +204,7 @@ class MLE_Trainer_Abstract():
             a_TP += TP
             a_FP += FP
             a_FN += FN
-            
+
         prec = a_TP / (a_TP + a_FP)
         rec = a_TP / (a_TP + a_FN)
         F1 = 2 * prec * rec / (prec + rec)
@@ -215,6 +222,6 @@ class MLE_Trainer_Abstract():
         if not os.path.exists(directory):
             os.makedirs(directory)
 
-        torch.save(self.policy.state_dict(), directory + '/' + str(epoch) + 'reward_mle.pol.mdl')
+        torch.save(self.reward_predictor.state_dict(), directory + '/' + str(epoch) + 'reward_mle.pol.mdl')
 
         logging.info('<<dialog policy>> epoch {}: saved network to mdl'.format(epoch))

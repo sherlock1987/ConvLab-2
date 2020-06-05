@@ -55,12 +55,12 @@ class DiscretePolicy(nn.Module):
         log_prob = torch.log(trg_a_probs)
 
         return log_prob
- 
-    
+
+
 class MultiDiscretePolicy(nn.Module):
     def __init__(self, s_dim, h_dim, a_dim):
         super(MultiDiscretePolicy, self).__init__()
-        
+
         self.net = nn.Sequential(nn.Linear(s_dim, h_dim),
                                  nn.ReLU(),
                                  nn.Linear(h_dim, h_dim),
@@ -72,7 +72,7 @@ class MultiDiscretePolicy(nn.Module):
         a_weights = self.net(s)
 
         return a_weights
-    
+
     def select_action(self, s, sample=True):
         """
         :param s: [s_dim]
@@ -82,17 +82,17 @@ class MultiDiscretePolicy(nn.Module):
         # [s_dim] => [a_dim]
         a_weights = self.forward(s)
         a_probs = torch.sigmoid(a_weights)
-        
+
         # [a_dim] => [a_dim, 2]
         a_probs = a_probs.unsqueeze(1)
-        a_probs = torch.cat([1-a_probs, a_probs], 1)
+        a_probs = torch.cat([1 - a_probs, a_probs], 1)
         a_probs = torch.clamp(a_probs, 1e-10, 1 - 1e-10)
-        
+
         # [a_dim, 2] => [a_dim]
         a = a_probs.multinomial(1).squeeze(1) if sample else a_probs.argmax(1)
-        
+
         return a
-    
+
     def get_log_prob(self, s, a):
         """
         :param s: [b, s_dim]
@@ -103,17 +103,29 @@ class MultiDiscretePolicy(nn.Module):
         # [b, s_dim] => [b, a_dim]
         a_weights = self.forward(s)
         a_probs = torch.sigmoid(a_weights)
-        
+
         # [b, a_dim] => [b, a_dim, 2]
         a_probs = a_probs.unsqueeze(-1)
-        a_probs = torch.cat([1-a_probs, a_probs], -1)
-        
+        a_probs = torch.cat([1 - a_probs, a_probs], -1)
+
         # [b, a_dim, 2] => [b, a_dim]
         trg_a_probs = a_probs.gather(-1, a.unsqueeze(-1).long()).squeeze(-1)
         log_prob = torch.log(trg_a_probs)
-        
+
         return log_prob.sum(-1, keepdim=True)
-        
+
+    def get_action(self, s):
+        """
+        :param s: [b, s_dim]
+        :return: [b, 1]
+        """
+        # forward to get action probs
+        # [b, s_dim] => [b, a_dim]
+        a_weights = self.forward(s)
+        a_probs = torch.sigmoid(a_weights)
+
+        return a_probs
+
 
 class ContinuousPolicy(nn.Module):
     def __init__(self, s_dim, h_dim, a_dim):
@@ -157,6 +169,7 @@ class ContinuousPolicy(nn.Module):
         :param a: [b, a_dim]
         :return: [b, 1]
         """
+
         def normal_log_density(x, mean, log_std):
             """
             x ~ N(mean, std)
@@ -169,9 +182,9 @@ class ContinuousPolicy(nn.Module):
             std = log_std.exp()
             var = std.pow(2)
             log_density = - (x - mean).pow(2) / (2 * var) - 0.5 * np.log(2 * np.pi) - log_std
-        
+
             return log_density.sum(-1, keepdim=True)
-        
+
         # forward to get action mean and log_std
         # [b, s_dim] => [b, a_dim]
         a_mean, a_log_std = self.forward(s)
@@ -180,8 +193,8 @@ class ContinuousPolicy(nn.Module):
         log_prob = normal_log_density(a, a_mean, a_log_std)
 
         return log_prob
-    
-    
+
+
 class Value(nn.Module):
     def __init__(self, s_dim, hv_dim):
         super(Value, self).__init__()
@@ -201,7 +214,9 @@ class Value(nn.Module):
 
         return value
 
+
 Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state', 'mask'))
+
 
 class Memory(object):
 
@@ -210,6 +225,7 @@ class Memory(object):
 
     def push(self, *args):
         """Saves a transition."""
+        # data is loaded over here.
         self.memory.append(Transition(*args))
 
     def get_batch(self, batch_size=None):

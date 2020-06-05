@@ -23,6 +23,11 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class Reward_predict(nn.Module):
     def __init__(self, input_size, hidden_size, output_size):
+        """
+        :param input_size: 549
+        :param hidden_size: no use now, may be use it later
+        :param output_size: 209, to predict the future.
+        """
         super(Reward_predict, self).__init__()
         self.encoder_1 = nn.LSTM(input_size, output_size, batch_first=True, bidirectional=False)
         self.encoder_2 = nn.LSTM(output_size, output_size)
@@ -31,17 +36,17 @@ class Reward_predict(nn.Module):
         self.loss = nn.BCELoss(size_average= False,reduce= True)
         self.cnn_belief = nn.Linear(input_size-output_size,output_size)
         self.cnn_output = nn.Linear(output_size,output_size)
+
     def forward(self, input_feature, input_belief, target):
-        # to construct the batch first, then we could compute the loss function for this stuff, simple and easy.
+
         _, (last_hidden, last_cell) = self.encoder_1(input_feature)
-        # second Part
 
         _, (predict_action, last_cell) = self.encoder_2(self.cnn_belief(input_belief), (last_hidden, last_cell))
 
         loss = self.loss(self.m(self.cnn_output(predict_action)),target)
         return loss
 
-    def compute_reward(self, input_feature,input_belief,input_predict_RL):
+    def compute_reward(self, input_feature, input_belief, input_predict_RL):
         # compute the reward based on the very easy methoc
         _, (last_hidden, last_cell) = self.encoder_1(input_feature)
         # second Part
@@ -89,7 +94,7 @@ class PG(Policy):
         """
         s_vec = torch.Tensor(self.vector.state_vectorize(state))
         a = self.policy.select_action(s_vec.to(device=DEVICE), self.is_train).cpu()
-        action = self.vector.action_devectorize(a.numpy())
+        action = self.vector.action_devectorize(a.detach().numpy())
         state['system_action'] = action
 
         return action
@@ -125,7 +130,13 @@ class PG(Policy):
         return v_target
 
     def sparse_reward(self,r,mask):
-        return r
+        for i in range(len(r)):
+            if mask[i] == tensor(0):
+                pass
+            else:
+                r[i] = tensor(-1)
+        return self.est_return(r,mask)
+
     def reward_predict(self, s, a, r, mask):
         reward_predict = []
         batchsz = r.shape[0]
@@ -149,7 +160,7 @@ class PG(Policy):
             # target = a_train[-1].unsqueeze(0)
             # 长度大于2 的话呢.
 
-            if len(input[0]) >=2:
+            if len(input[0]) >= 2:
                 input_pre = input.squeeze(0)[:-1].unsqueeze(0)
                 input_bf = s_train.squeeze(0)[-1].unsqueeze(0).unsqueeze(0)
                 target = a_train.squeeze(0)[-1].unsqueeze(0).unsqueeze(0)
@@ -168,57 +179,18 @@ class PG(Policy):
                 reward_predict.append(1)
 
         # add the bellman equation
-        # reward_bell_man = self.est_return(tensor(reward_predict),mask)
+        reward_bell_man = self.est_return(tensor(reward_predict),mask)
 
-        return tensor(reward_predict)
+        return reward_bell_man
 
     def update(self, epoch, batchsz, s, a, r, mask):
-        # generate a sequence of this one, it is fine for me
-        # change this place
-        # v_target = self.est_return(r, mask)
-        v_target = (self.  (s,a,r,mask))
+        # there are three reward which I could use.
+        v_target = self.est_return(r, mask)
+        # v_target = self.reward_predict(s,a,r,mask)
         # v_target = self.sparse_reward(r,mask)
-        # from mask to do the divide and get the index
-        batch_index = []
-        temp = []
-        for index, ele in enumerate(mask.numpy()):
-            if ele == 0:
-                temp.append(index)
-                batch_index.append(temp)
-                temp = []
-            else:
-                temp.append(index)
+
         for i in range(self.update_round):
-            # for iteration in batch_index:
-            #     loss = torch.tensor([0]).float()
-            #     # starting looping and make the sum of loss.
-            #     print("-" * 30,len(iteration))
-            #     print(s[iteration[0]])
-            #     for index, _ in enumerate(iteration):
-            #         temp = iteration[:index+1]
-            #         if len(temp) >= 4:
-            #             # start training
-            #             s_b = s[temp].float()
-            #             a_b = a[temp].float()
-            #             input = torch.cat((s_b[:-1], a_b[:-1]), -1).unsqueeze(0)
-            #             belief = s_b[-1].unsqueeze(0).unsqueeze(0)
-            #             target = a_b[-1].unsqueeze(0).unsqueeze(0)
-            #
-            #             micro_loss = self.predictor_reward(input, belief,target)
-            #             # print(micro_loss)
-            #             loss += micro_loss
-            #     # backwarding...
-            #     if loss != torch.tensor([0]).float():
-            #         # print(loss.item()/(len(iteration)-3),loss.shape)
-            #         loss.backward()
-            #         for name,param in self.predictor_reward.named_parameters():
-            #             if "cnn" not in name:
-            #                 # print(name)
-            #                 # print(param.grad)
-            #                 pass
-            #         self.optim_reward.step()
-            #         self.predictor_reward.zero_grad()
-            #         self.loss_record.append(loss.item()/len(iteration))
+            # one epoch, and 5 round to update
             # 1. shuffle current batch
             perm = torch.randperm(batchsz)
             # shuffle the variable for mutliple optimize
@@ -240,6 +212,7 @@ class PG(Policy):
                 self.policy_optim.zero_grad()
                 # [b, 1]
                 log_pi_sa = self.policy.get_log_prob(s_b, a_b)
+                action = self.policy.get_action(s_b)
                 # ratio = exp(log_Pi(a|s) - log_Pi_old(a|s)) = Pi(a|s) / Pi_old(a|s)
                 # we use log_pi for stability of numerical operation
                 # [b, 1] => [b]
@@ -247,7 +220,6 @@ class PG(Policy):
                 # we add negative symbol to convert gradient ascent to gradient descent
                 surrogate = - (log_pi_sa * v_target_b).mean()
                 policy_loss += surrogate.item()
-
                 # backprop
                 surrogate.backward()
                 # gradient clipping, for stability

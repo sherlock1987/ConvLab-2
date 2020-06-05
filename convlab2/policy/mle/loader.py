@@ -7,40 +7,49 @@ from convlab2.policy.vector.dataset import ActDataset
 from convlab2.util.dataloader.dataset_dataloader import MultiWOZDataloader
 from convlab2.util.dataloader.module_dataloader import ActPolicyDataloader
 
+
 class ActMLEPolicyDataLoader():
-    
+
     def __init__(self):
         self.vector = None
-        
-    def _build_data(self, root_dir, processed_dir):        
+
+    def _build_data(self, root_dir, processed_dir):
         self.data = {}
+        self.terminate = {}
         data_loader = ActPolicyDataloader(dataset_dataloader=MultiWOZDataloader())
         for part in ['train', 'val', 'test']:
             self.data[part] = []
-            raw_data = data_loader.load_data(data_key=part, role='system')[part]
-            
+            self.terminate[part] = []
+            raw_data = data_loader.load_data(data_key=part, role='sys')[part]
             for belief_state, context_dialog_act, terminated, dialog_act in \
-                zip(raw_data['belief_state'], raw_data['context_dialog_act'], raw_data['terminated'], raw_data['dialog_act']):
+                    zip(raw_data['belief_state'], raw_data['context_dialog_act'], raw_data['terminated'],
+                        raw_data['dialog_act']):
+                # all over here.
                 state = default_state()
                 state['belief_state'] = belief_state
                 state['user_action'] = context_dialog_act[-1]
                 state['system_action'] = context_dialog_act[-2] if len(context_dialog_act) > 1 else {}
                 state['terminated'] = terminated
                 action = dialog_act
+                # print(state['terminated'])
                 self.data[part].append([self.vector.state_vectorize(state),
-                         self.vector.action_vectorize(action)])
-        
+                                        self.vector.action_vectorize(action), state['terminated']])
+                self.terminate[part].append(state['terminated'])
         os.makedirs(processed_dir)
         for part in ['train', 'val', 'test']:
             with open(os.path.join(processed_dir, '{}.pkl'.format(part)), 'wb') as f:
                 pickle.dump(self.data[part], f)
+
+        for part in ['train', 'val', 'test']:
+            with open(os.path.join(processed_dir, '{}_terminate.pkl'.format(part)), 'wb') as f:
+                pickle.dump(self.terminate[part], f)
 
     def _load_data(self, processed_dir):
         self.data = {}
         for part in ['train', 'val', 'test']:
             with open(os.path.join(processed_dir, '{}.pkl'.format(part)), 'rb') as f:
                 self.data[part] = pickle.load(f)
-                
+
     def create_dataset(self, part, batchsz):
         print('Start creating {} dataset'.format(part))
         s = []

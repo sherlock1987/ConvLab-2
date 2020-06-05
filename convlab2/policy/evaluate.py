@@ -18,6 +18,8 @@ import logging
 import os
 import datetime
 import argparse
+import os
+
 
 def init_logging(log_dir_path, path_suffix=None):
     if not os.path.exists(log_dir_path):
@@ -147,6 +149,7 @@ def sample(env, policy, batchsz, process_num):
 
     return buff.get_batch()
 
+
 def evaluate(dataset_name, model_name, load_path, calculate_reward=True):
     seed = 20190827
     random.seed(seed)
@@ -155,7 +158,7 @@ def evaluate(dataset_name, model_name, load_path, calculate_reward=True):
 
     if dataset_name == 'MultiWOZ':
         dst_sys = RuleDST()
-        
+
         if model_name == "PPO":
             from convlab2.policy.ppo import PPO
             if load_path:
@@ -184,7 +187,7 @@ def evaluate(dataset_name, model_name, load_path, calculate_reward=True):
                 policy_sys.load(load_path)
             else:
                 policy_sys = GDPL.from_pretrained()
-            
+
         dst_usr = None
 
         policy_usr = RulePolicy(character='usr')
@@ -204,30 +207,31 @@ def evaluate(dataset_name, model_name, load_path, calculate_reward=True):
             torch.manual_seed(seed)
             sess.init_session()
             sys_response = []
-            logging.info('-'*50)
+            logging.info('-' * 50)
             logging.info(f'seed {seed}')
             for i in range(40):
                 sys_response, user_response, session_over, reward = sess.next_turn(sys_response)
                 if session_over is True:
                     task_succ = sess.evaluator.task_success()
+                    # over here is our result, we need.
                     logging.info(f'task success: {task_succ}')
                     logging.info(f'book rate: {sess.evaluator.book_rate()}')
                     logging.info(f'inform precision/recall/f1: {sess.evaluator.inform_F1()}')
-                    logging.info('-'*50)
+                    logging.info('-' * 50)
                     break
-            else: 
+            else:
                 task_succ = 0
-    
-            for key in sess.evaluator.goal: 
-                if key not in task_success: 
+
+            for key in sess.evaluator.goal:
+                if key not in task_success:
                     task_success[key] = []
-                else: 
+                else:
                     task_success[key].append(task_succ)
             task_success['All'].append(task_succ)
-        
-        for key in task_success: 
-            logging.info(f'{key} {len(task_success[key])} {np.average(task_success[key]) if len(task_success[key]) > 0 else 0}')
 
+        for key in task_success:
+            logging.info(
+                f'{key} {len(task_success[key])} {np.average(task_success[key]) if len(task_success[key]) > 0 else 0}')
         if calculate_reward:
             reward_tot = []
             for seed in range(100):
@@ -243,27 +247,259 @@ def evaluate(dataset_name, model_name, load_path, calculate_reward=True):
                     next_s, r, done = env.step(a)
                     logging.info(r)
                     reward.append(r)
-                    if done: # one due to counting from 0, the one for the last turn
+                    if done:  # one due to counting from 0, the one for the last turn
                         break
                 logging.info(f'{seed} reward: {np.mean(reward)}')
                 reward_tot.append(np.mean(reward))
             logging.info(f'total avg reward: {np.mean(reward_tot)}')
     else:
         raise Exception("currently supported dataset: MultiWOZ")
-    
+
+
+# this is my code of changing
+def evaluate_test(dataset_name, model_name, load_path, calculate_reward=True):
+    """
+    :param dataset_name:
+    :param model_name:
+    :param load_path:
+    :param calculate_reward:
+    :return: dict: task_success
+    """
+    seed = 20190827
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+    if dataset_name == 'MultiWOZ':
+        dst_sys = RuleDST()
+
+        if model_name == "PPO":
+            from convlab2.policy.ppo import PPO
+            if load_path:
+                policy_sys = PPO(False)
+                policy_sys.load(load_path)
+            else:
+                policy_sys = PPO.from_pretrained()
+        elif model_name == "PG":
+            from convlab2.policy.pg import PG
+            if load_path:
+                policy_sys = PG(False)
+                policy_sys.load(load_path)
+            else:
+                policy_sys = PG.from_pretrained()
+        elif model_name == "MLE":
+            from convlab2.policy.mle.multiwoz import MLE
+            if load_path:
+                policy_sys = MLE()
+                policy_sys.load(load_path)
+            else:
+                policy_sys = MLE.from_pretrained()
+        elif model_name == "GDPL":
+            from convlab2.policy.gdpl import GDPL
+            if load_path:
+                policy_sys = GDPL(False)
+                policy_sys.load(load_path)
+            else:
+                policy_sys = GDPL.from_pretrained()
+
+        dst_usr = None
+
+        policy_usr = RulePolicy(character='usr')
+        simulator = PipelineAgent(None, None, policy_usr, None, 'user')
+
+        env = Environment(None, simulator, None, dst_sys)
+
+        agent_sys = PipelineAgent(None, dst_sys, policy_sys, None, 'sys')
+
+        evaluator = MultiWozEvaluator()
+        sess = BiSession(agent_sys, simulator, None, evaluator)
+
+        task_success = {'All': []}
+        for seed in range(100):
+            random.seed(seed)
+            np.random.seed(seed)
+            torch.manual_seed(seed)
+            sess.init_session()
+            sys_response = []
+            logging.info('-' * 50)
+            logging.info(f'seed {seed}')
+            for i in range(40):
+                sys_response, user_response, session_over, reward = sess.next_turn(sys_response)
+                if session_over is True:
+                    task_succ = sess.evaluator.task_success()
+                    # over here is our result, we need.
+                    logging.info(f'task success: {task_succ}')
+                    logging.info(f'book rate: {sess.evaluator.book_rate()}')
+                    logging.info(f'inform precision/recall/f1: {sess.evaluator.inform_F1()}')
+                    logging.info('-' * 50)
+                    break
+            else:
+                task_succ = 0
+
+            for key in sess.evaluator.goal:
+                if key not in task_success:
+                    task_success[key] = []
+                else:
+                    task_success[key].append(task_succ)
+            task_success['All'].append(task_succ)
+
+        for key in task_success:
+            logging.info(
+                f'{key} {len(task_success[key])} {np.average(task_success[key]) if len(task_success[key]) > 0 else 0}')
+        if calculate_reward:
+            reward_tot = []
+            for seed in range(100):
+                s = env.reset()
+                reward = []
+                value = []
+                mask = []
+                for t in range(40):
+                    s_vec = torch.Tensor(policy_sys.vector.state_vectorize(s))
+                    a = policy_sys.predict(s)
+
+                    # interact with env
+                    next_s, r, done = env.step(a)
+                    logging.info(r)
+                    reward.append(r)
+                    if done:  # one due to counting from 0, the one for the last turn
+                        break
+                logging.info(f'{seed} reward: {np.mean(reward)}')
+                reward_tot.append(np.mean(reward))
+            logging.info(f'total avg reward: {np.mean(reward_tot)}')
+        return task_success
+    else:
+        raise Exception("currently supported dataset: MultiWOZ")
+
+
+def create_file_list(dir):
+    path = dir
+    files = os.listdir(path)
+    name = []
+    num = []
+    # detect the last one
+    files.sort()
+
+    # for i in range(len(files[0])):
+    #     try:
+    #         a = int(files[0][i])
+    #     except Exception as e:
+    #         extra_name = files[0][i:]
+    #         break
+    #
+    # for file in files:
+    #     if "mdl"  in file:
+    #         num.append(int(file.replace(extra_name, '')))
+    # from the files to get the index
+    for file in files:
+        try:
+            num_index = int(file[:2])
+            num.append(num_index)
+        except Exception as e:
+            num_index = int(file[0])
+            num.append(num_index)
+
+    num = list(set(num))
+    num.sort()
+    print(args.model_name)
+    if args.model_name == "PPO":
+        for nums in num:
+            name.append(dir + "/" + str(nums) + "_ppo")
+    elif args.model_name == "GDPL":
+        for nums in num:
+            name.append(dir + "/" + str(nums) + "_gdpl")
+    else:
+        pass
+    return name
+
+
+sample_dict = {
+    'All': [0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0,
+            0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0,
+            0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0],
+    'train': [1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
+              1, 0, 0],
+    'restaurant': [1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1,
+                   0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0],
+    'attraction': [1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
+    'hotel': [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+              1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+    'taxi': [1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0], 'hospital': [1]}
+
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset_name", type=str, default="MultiWOZ", help="name of dataset")
     parser.add_argument("--model_name", type=str, default="PPO", help="name of model")
     parser.add_argument("--load_path", type=str, default='', help="path of model")
     parser.add_argument("--log_path_suffix", type=str, default="", help="suffix of path of log file")
     parser.add_argument("--log_dir_path", type=str, default="log", help="path of log directory")
+    parser.add_argument("--evluate_in_dir", type=bool, default=False,
+                        help="whether to evluate the model from one directory")
+    parser.add_argument("--model_path_root", type=str, default="", help="root path which contains many models")
     args = parser.parse_args()
 
     init_logging(log_dir_path=args.log_dir_path, path_suffix=args.log_path_suffix)
-    evaluate(
-        dataset_name=args.dataset_name,
-        model_name=args.model_name,
-        load_path=args.load_path,
-        calculate_reward=True
-    )
+    success_rate_record = []
+    if not args.evluate_in_dir:
+        evaluate(
+            dataset_name=args.dataset_name,
+            model_name=args.model_name,
+            load_path=args.load_path,
+            calculate_reward=True
+        )
+    else:
+        name_list = create_file_list(args.model_path_root)
+        print(name_list)
+        for model_dir in name_list:
+            print("Evaluating the model from", model_dir)
+            result = evaluate_test(
+                dataset_name=args.dataset_name,
+                model_name=args.model_name,
+                load_path=model_dir,
+                calculate_reward=False
+            )
+            success_rate = np.mean(result["All"])
+            success_rate_record.append(success_rate)
+        #  remember to print otherwise you will lose time.
+        print(success_rate_record)
+        axis = [i for i in range(len(success_rate_record))]
+        plt.plot(axis, success_rate_record)
+        plt.xlabel('Number of Epoch')
+        plt.ylabel('Success rate')
+        plt.show()
+# args for the evluator
+# --load_path
+# /home/raliegh/视频/ConvLab-2/convlab2/policy/pg/save/0_pg_plus_reward.pol.mdl
+# --model_name
+# GDPL
+# --model_path_root
+# /home/raliegh/视频/ConvLab-2/convlab2/policy/gdpl/save/original
+# --evluate_in_dir
+# True
+
+#  seems like training on the best one is not a good idea at all.
+#  reward + best one
+# [0.32, 0.22, 0.2, 0.2, 0.2]
+# Only best one
+# [0.29, 0.33, 0.07, 0.0] 训练出现错误了.
+#  reward + MLE
+# [0.44, 0.3, 0.38, 0.36, 0.36]
+# MLE
+# [0.23, 0.0]
+# Nothing
+# [0.22, 0.23, 0.26, 0.28, 0.26]
+# reaward + no best one or MLE
+# [0.33, 0.37, 0.3, 0.29, 0.36]
+
+# PPO
+# MLE
+# [0.55, 0.47, 0.54, 0.55, 0.54, 0.54, 0.54, 0.57, 0.54, 0.54, 0.54, 0.52, 0.55, 0.49, 0.48, 0.46, 0.52, 0.5, 0.45, 0.52]
+# MLE + reward
+# [0.52, 0.55, 0.56, 0.58, 0.56, 0.56, 0.55, 0.54, 0.55, 0.56, 0.53, 0.54, 0.5, 0.52, 0.51, 0.56, 0.55, 0.57, 0.55, 0.54]
+# best model
+# [0.69, 0.73, 0.76, 0.75, 0.71, 0.67, 0.68, 0.68, 0.68, 0.71, 0.71, 0.68, 0.7, 0.67, 0.7, 0.7, 0.64, 0.66, 0.65, 0.63]
+
+# NOTE
+# 1. model ppo or pg
+# 2. if path end with "/"
+# 3. PPO will have some bugs.

@@ -55,7 +55,6 @@ def sampler(pid, queue, evt, env, policy, batchsz):
         s = env.reset()
 
         for t in range(traj_len):
-
             # [s_dim] => [a_dim]
             s_vec = torch.Tensor(policy.vector.state_vectorize(s))
             a = policy.predict(s)
@@ -118,6 +117,7 @@ def sample(env, policy, batchsz, process_num):
     processes = []
     for i in range(process_num):
         process_args = (i, queue, evt, env, policy, process_batchsz)
+        # from here to sample the data
         processes.append(mp.Process(target=sampler, args=process_args))
     for p in processes:
         # set the process as daemon, and it will be killed once the main process is stoped.
@@ -156,8 +156,9 @@ def update(env, policy, batchsz, epoch, process_num):
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("--load_path", type=str, default="", help="path of model to load")
+    parser.add_argument("--load_path_reward", default="", help="path of model to load from reward machine")
     parser.add_argument("--batchsz", type=int, default=512, help="batch size of trajactory sampling")
-    parser.add_argument("--epoch", type=int, default=20, help="number of epochs to train")
+    parser.add_argument("--epoch", type=int, default=5, help="number of epochs to train")
     parser.add_argument("--process_num", type=int, default=4, help="number of processes of trajactory sampling")
     args = parser.parse_args()
 
@@ -166,6 +167,8 @@ if __name__ == '__main__':
 
     policy_sys = PG(True)
     policy_sys.load(args.load_path)
+    # load the model of reward function
+    policy_sys.load_reward_model(args.load_path_reward)
 
     # not use dst
     dst_usr = None
@@ -175,7 +178,16 @@ if __name__ == '__main__':
     simulator = PipelineAgent(None, None, policy_usr, None, 'user')
 
     evaluator = MultiWozEvaluator()
+    # this is trained with SU
     env = Environment(None, simulator, None, dst_sys, evaluator)
 
     for i in range(args.epoch):
         update(env, policy_sys, args.batchsz, i, args.process_num)
+# two stuff to note when training
+# 1.path of model
+# 2.modify the reward func in pg.py if need
+# args for this file, the reward is what I trained
+# --load_path
+# /home/raliegh/视频/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle
+# --load_path_reward
+# /home/raliegh/视频/ConvLab-2/convlab2/policy/mle/multiwoz/save/idea1_model/0reward_mle.pol.mdl

@@ -42,3 +42,5 @@ class Reward_max(nn.Module):
         reward = action_prob.unsqueeze(0) * input_predict_RL.unsqueeze(0)
         res = torch.sum(reward.unsqueeze(0).unsqueeze(0))
         return res
+    def fake_data_generator(self):
+        pass

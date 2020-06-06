@@ -121,7 +121,6 @@ class MultiWozVector(Vector):
                 Dialog state vector
         """
         self.state = state['belief_state']
-
         # when character is sys, to help query database when da is booking-book
         # update current domain according to user action
         if self.character == 'sys':

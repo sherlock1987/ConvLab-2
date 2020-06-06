@@ -1,6 +1,6 @@
 {
 	"batchsz": 32,
-	"gamma": 0.99,
+	"gamma": 0.98,
 	"lr": 0.001,
 	"save_dir": "save",
 	"log_dir": "log",

@@ -14,7 +14,7 @@ from convlab2.policy.vector.vector_multiwoz import MultiWozVector
 from convlab2.policy.mle.train import MLE_Trainer_Abstract
 from convlab2.policy.mle.multiwoz.loader import ActMLEPolicyDataLoaderMultiWoz
 from convlab2.util.train_util import init_logging_handler
-
+from convlab2.policy.mle.Fake_data_generator import PG_generator
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -33,7 +33,7 @@ class MLE_Trainer(MLE_Trainer_Abstract):
         self.policy_optim = torch.optim.RMSprop(self.policy.parameters(), lr=cfg['lr'],
                                                 weight_decay=cfg['weight_decay'])
         # define for training
-
+        self.generator_fake = PG_generator()
 
 if __name__ == '__main__':
     manager = ActMLEPolicyDataLoaderMultiWoz()

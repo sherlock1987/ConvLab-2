@@ -13,6 +13,8 @@ You can modify *config.json* to change the setting.
 ## Data
 
 data/multiwoz/[train/val/test].json
+how to add more information of data? Not only just action and bf
+please go to mle/multiwoz/loader for details.
 
 ## Trained Model
 

@@ -16,10 +16,12 @@ class ActMLEPolicyDataLoader():
     def _build_data(self, root_dir, processed_dir):
         self.data = {}
         self.terminate = {}
+        self.state_whole = {}
         data_loader = ActPolicyDataloader(dataset_dataloader=MultiWOZDataloader())
         for part in ['train', 'val', 'test']:
             self.data[part] = []
             self.terminate[part] = []
+            self.state_whole[part] = []
             raw_data = data_loader.load_data(data_key=part, role='sys')[part]
             for belief_state, context_dialog_act, terminated, dialog_act in \
                     zip(raw_data['belief_state'], raw_data['context_dialog_act'], raw_data['terminated'],
@@ -35,14 +37,20 @@ class ActMLEPolicyDataLoader():
                 self.data[part].append([self.vector.state_vectorize(state),
                                         self.vector.action_vectorize(action), state['terminated']])
                 self.terminate[part].append(state['terminated'])
+
+                self.state_whole[part].append(state)
         os.makedirs(processed_dir)
         for part in ['train', 'val', 'test']:
             with open(os.path.join(processed_dir, '{}.pkl'.format(part)), 'wb') as f:
                 pickle.dump(self.data[part], f)
-
+        # save file of terminate 1 is not end, 0 means endding.
         for part in ['train', 'val', 'test']:
             with open(os.path.join(processed_dir, '{}_terminate.pkl'.format(part)), 'wb') as f:
                 pickle.dump(self.terminate[part], f)
+        # save state data in this file, and then use it to train, note this one is a dict file.
+        for part in ['train', 'val', 'test']:
+            with open(os.path.join(processed_dir, '{}_state_whole.pkl'.format(part)), 'wb') as f:
+                pickle.dump(self.state_whole[part], f)
 
     def _load_data(self, processed_dir):
         self.data = {}

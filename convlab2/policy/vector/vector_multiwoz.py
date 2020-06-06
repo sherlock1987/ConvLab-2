@@ -7,7 +7,7 @@ from convlab2.util.multiwoz.lexicalize import delexicalize_da, flat_da, deflat_d
 from convlab2.util.multiwoz.state import default_state
 from convlab2.util.multiwoz.multiwoz_slot_trans import REF_USR_DA
 from convlab2.util.multiwoz.dbquery import Database
-
+# slot value, not the belief state, I believ belief state is related to the slot, like addr has three values, and bf will show that.
 mapping = {'restaurant': {'addr': 'address', 'area': 'area', 'food': 'food', 'name': 'name', 'phone': 'phone',
                           'post': 'postcode', 'price': 'pricerange'},
            'hotel': {'addr': 'address', 'area': 'area', 'internet': 'internet', 'parking': 'parking', 'name': 'name',
@@ -110,7 +110,6 @@ class MultiWozVector(Vector):
 
     def state_vectorize(self, state):
         """vectorize a state
-
         Args:
             state (dict):
                 Dialog state

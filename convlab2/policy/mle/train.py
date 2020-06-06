@@ -11,7 +11,7 @@ import zipfile
 import sys
 import matplotlib.pyplot  as plt
 import pickle
-
+from convlab2.policy.mle.Fake_data_generator import PG_generator
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 import torch.tensor as tensor
 
@@ -43,7 +43,7 @@ class MLE_Trainer_Abstract():
         self._init_data(manager, cfg)
         self.policy = None
         self.policy_optim = None
-
+        self.generator_fake = None
         # define the stuff from the reward machine
 
     def _init_data(self, manager, cfg):
@@ -59,10 +59,17 @@ class MLE_Trainer_Abstract():
         self.reward_optim = optim.Adam(self.reward_predictor.parameters(), lr=1e-4)
         #    init the terminate state and use if when training our model.
         self.terminate_train = {}
+        self.state_whole = {}
+        # load data of terminate
         for part in ['train', 'val', 'test']:
             with open(os.path.join("//home//raliegh//图片//ConvLab-2//convlab2//policy//mle//multiwoz//processed_data",
                                    '{}_terminate.pkl'.format(part)), 'rb') as f:
                 self.terminate_train[part] = pickle.load(f)
+        # load data of state_whole
+        for part in ['train', 'val', 'test']:
+            with open(os.path.join("//home//raliegh//图片//ConvLab-2//convlab2//policy//mle//multiwoz//processed_data",
+                                   '{}_state_whole.pkl'.format(part)), 'rb') as f:
+                self.state_whole[part] = pickle.load(f)
 
     def policy_loop(self, data):
         s, target_a = to_device(data)
@@ -78,6 +85,9 @@ class MLE_Trainer_Abstract():
         loss = torch.tensor([0]).float()
 
         for i, data in enumerate(self.data_train):
+            # curr_state is everything, contains domain, action, bf, and also user action.
+            curr_state = self.state_whole["train"][i]
+            fake_action = self.generator_fake.predict(curr_state)
             s, a = to_device(data)
             # s_temp = s[:i+1]
             try:

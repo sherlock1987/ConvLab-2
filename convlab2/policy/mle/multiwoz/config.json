@@ -5,7 +5,7 @@
 	"save_dir": "save",
 	"log_dir": "log",
 	"print_per_batch": 400,
-	"save_per_epoch": 1,
+	"save_per_epoch": 2,
 	"h_dim": 100,
 	"load": "save/best",
 	"pos_weight": 5,

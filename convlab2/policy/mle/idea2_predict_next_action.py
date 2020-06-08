@@ -40,7 +40,7 @@ class Reward_predict(nn.Module):
         return loss
 
     def compute_reward(self, input_feature, input_belief, input_predict_RL):
-        # compute the reward based on the very easy methoc
+        # compute the reward based on the very easy methocd: product of two vectors
         _, (last_hidden, last_cell) = self.encoder_1(input_feature)
         # second Part
         _, (predict_action, last_cell) = self.encoder_2(self.cnn_belief(input_belief), (last_hidden, last_cell))

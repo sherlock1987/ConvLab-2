@@ -191,4 +191,4 @@ if __name__ == '__main__':
 # --load_path
 # /home/raliegh/视频/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle
 # --load_path_reward
-# /home/raliegh/视频/ConvLab-2/convlab2/policy/mle/multiwoz/save/idea1_model/0reward_mle.pol.mdl
+# /home/raliegh/视频/ConvLab-2/convlab2/policy/mle/multiwoz/save/idea1_model/ideal_model/0reward_mle.pol.mdl

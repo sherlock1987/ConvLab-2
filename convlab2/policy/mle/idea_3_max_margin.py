@@ -44,6 +44,7 @@ class Reward_max_margin(nn.Module):
         return score
 
 
+
     def compute_reward(self, input_feature):
         """
         :param input_feature: current dialogue as the input.

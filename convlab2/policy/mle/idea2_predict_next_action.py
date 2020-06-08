@@ -49,7 +49,7 @@ class Reward_predict(nn.Module):
         res = torch.sum(reward.unsqueeze(0).unsqueeze(0))
         return res
 
-    def bellman_equation(self,r,mask,gamma):
+    def bellman_equation(self,r, mask, gamma):
         """
         we save a trajectory in continuous space and it reaches the ending of current trajectory when mask=0.
         :param r: reward, Tensor, [b]

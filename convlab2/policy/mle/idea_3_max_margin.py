@@ -52,7 +52,7 @@ class Reward_max_margin(nn.Module):
         """
         _, (last_hidden, last_cell) = self.encoder(self.cnn_feature_encoded(input_feature))
         score = self.cnn_output(last_hidden)
-        return score.float()
+        return score.float() - 0.5
 
     def loss_plus_lstm(self, input_real, input_fake):
         """
@@ -125,3 +125,27 @@ class Reward_max_margin(nn.Module):
 
     def train_iteration(self,input_real, input_fake):
         pass
+
+    def bellman_equation(self,r, mask, gamma):
+        """
+        we save a trajectory in continuous space and it reaches the ending of current trajectory when mask=0.
+        :param r: reward, Tensor, [b]
+        :param mask: indicates ending for 0 otherwise 1, Tensor, [b]
+        :return: V-target(s), Tensor
+        """
+        batchsz = r.size(0)
+
+        # v_target is worked out by Bellman equation.
+        v_target = torch.Tensor(batchsz)
+
+        prev_v_target = 0
+        for t in reversed(range(batchsz)):
+            # mask here indicates a end of trajectory
+            # this value will be treated as the target value of value network.
+            # mask = 0 means the immediate reward is the real V(s) since it's end of trajectory.
+            # formula: V(s_t) = r_t + gamma * V(s_t+1)
+            v_target[t] = r[t] + gamma * prev_v_target * mask[t]
+            # update previous
+            prev_v_target = v_target[t]
+
+        return v_target

@@ -1,7 +1,7 @@
 
 ## Models
 
-We provide following models:
+Following models:
 
 - NLU: SVMNLU, MILU, BERTNLU
 - DST: rule, MDBT, TRADE, SUMBT
@@ -85,13 +85,14 @@ Performance (the first row is the default config for each module. Empty entries 
 
 By running `convlab2/policy/evalutate.py --model_name $model`
 
-|           | Task Success Rate |epoch 4            | epoch 20          | 
-| --------- | ----------------- | ----------------- | ----------------- |
-| MLE       | 0.56              |                   |                   | 
-| PG        | 0.54              |                   |                   | 
-| PPO       | 0.74              |                   |                   | 
-| GDPL      | 0.58              |                   |                   | 
-| idea2     | 0.56              |                   |                   | 
+|           | Task Success Rate | 
+| --------- | ----------------- |
+| MLE       | 0.56              | 
+| PG        | 0.54              |
+| PPO       | 0.74              |
+| GDPL      | 0.58              | 
+| idea2     | 0.56              |
+| idea3     | 0.6               | 
 
 
 20 epoch, after 20, it will overfitting, cause the bz size, it will have something different

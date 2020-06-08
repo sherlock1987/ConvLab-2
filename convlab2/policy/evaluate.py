@@ -379,28 +379,23 @@ def create_file_list(dir):
     # detect the last one
     files.sort()
 
-    # for i in range(len(files[0])):
-    #     try:
-    #         a = int(files[0][i])
-    #     except Exception as e:
-    #         extra_name = files[0][i:]
-    #         break
-    #
-    # for file in files:
-    #     if "mdl"  in file:
-    #         num.append(int(file.replace(extra_name, '')))
-    # from the files to get the index
     for file in files:
-        try:
-            num_index = int(file[:2])
-            num.append(num_index)
-        except Exception as e:
-            num_index = int(file[0])
-            num.append(num_index)
+        if file[:3].isnumeric():
+            num.append(int(file[:3]))
+        elif file[:2].isnumeric():
+            num.append(int(file[:2]))
+        else:
+            num.append(int(file[0]))
+        # try:
+        #     num_index = int(file[:2])
+        #     num.append(num_index)
+        # except Exception as e:
+        #     num_index = int(file[0])
+        #     num.append(num_index)
 
     num = list(set(num))
     num.sort()
-    print(args.model_name)
+    print(num)
     if args.model_name == "PPO":
         for nums in num:
             name.append(dir + "/" + str(nums) + "_ppo")
@@ -493,13 +488,22 @@ if __name__ == "__main__":
 
 # PPO
 # MLE
-# [0.55, 0.47, 0.54, 0.55, 0.54, 0.54, 0.54, 0.57, 0.54, 0.54, 0.54, 0.52, 0.55, 0.49, 0.48, 0.46, 0.52, 0.5, 0.45, 0.52]
-# MLE + reward
-# [0.52, 0.55, 0.56, 0.58, 0.56, 0.56, 0.55, 0.54, 0.55, 0.56, 0.53, 0.54, 0.5, 0.52, 0.51, 0.56, 0.55, 0.57, 0.55, 0.54]
+# [0.52, 0.53, 0.54, 0.49, 0.44, 0.49, 0.46, 0.47, 0.44, 0.43, 0.42, 0.44, 0.47, 0.48, 0.49, 0.46, 0.45, 0.46, 0.45, 0.48, 0.46, 0.48, 0.49, 0.49, 0.49, 0.48, 0.45, 0.47, 0.43, 0.43, 0.43, 0.42, 0.42, 0.41, 0.42, 0.43, 0.44, 0.47, 0.45, 0.43]
+# MLE + reward drop significantly 预测的不对,基本上很难有所帮助的
+# [0.52, 0.53, 0.54, 0.49, 0.44, 0.49, 0.46, 0.47, 0.44, 0.43, 0.42, 0.44, 0.47, 0.48, 0.49, 0.46, 0.45, 0.46, 0.45, 0.48, 0.46, 0.48, 0.49, 0.49, 0.49, 0.48, 0.45, 0.47, 0.43, 0.43, 0.43, 0.42, 0.42, 0.41, 0.42, 0.43, 0.44, 0.47, 0.45, 0.43]
 # best model
 # [0.69, 0.73, 0.76, 0.75, 0.71, 0.67, 0.68, 0.68, 0.68, 0.71, 0.71, 0.68, 0.7, 0.67, 0.7, 0.7, 0.64, 0.66, 0.65, 0.63]
 
-# NOTE
-# 1. model ppo or pg
-# 2. if path end with "/"
-# 3. PPO will have some bugs.
+# MLE + reward_3 40
+# extremelly quick when using this one, much more stable than the previous one, and also the rewards2 have some bugs, remember to modify it.
+# [0.52, 0.57, 0.55, 0.58, 0.57, 0.55, 0.54, 0.58, 0.55, 0.53, 0.55, 0.53, 0.54, 0.55, 0.57, 0.53, 0.55, 0.54, 0.56, 0.56, 0.55, 0.54, 0.57, 0.56, 0.58, 0.6, 0.6, 0.55, 0.57, 0.57, 0.58, 0.58, 0.59, 0.57, 0.57, 0.57, 0.57, 0.57, 0.56, 0.58]
+# 200 what will look like? this and the MLE process?
+""""
+Description for how to use this file
+args:
+1. Evluate all of models in one root
+--model_name PPO --evluate_in_dir True --model_path_root /home/raliegh/图片/ConvLab-2/convlab2/policy/ppo/save/
+2. Evluate only one model
+--model_name PPO --load_path /home/raliegh/视频/ConvLab-2/convlab2/policy/pg/save/0_pg_plus_reward.pol.mdl
+Then run, remember to see model load successfully in logs.
+"""""

@@ -158,7 +158,7 @@ if __name__ == '__main__':
     parser.add_argument("--load_path", type=str, default="", help="path of model to load")
     parser.add_argument("--load_path_reward", default="", help="path of model to load from reward machine")
     parser.add_argument("--batchsz", type=int, default=512, help="batch size of trajactory sampling")
-    parser.add_argument("--epoch", type=int, default=20, help="number of epochs to train")
+    parser.add_argument("--epoch", type=int, default=200, help="number of epochs to train")
     parser.add_argument("--process_num", type=int, default=4, help="number of processes of trajactory sampling")
     args = parser.parse_args()
 
@@ -167,7 +167,8 @@ if __name__ == '__main__':
 
     policy_sys = PPO(True)
     policy_sys.load(args.load_path)
-    policy_sys.load_reward_model(args.load_path_reward)
+    # policy_sys.load_reward_model(args.load_path_reward)
+    policy_sys.load_reward_model_idea3(args.load_path_reward)
 
     # not use dst
     dst_usr = None
@@ -181,3 +182,13 @@ if __name__ == '__main__':
 
     for i in range(args.epoch):
         update(env, policy_sys, args.batchsz, i, args.process_num)
+
+"""
+How to add idea_x?
+args:
+--load_path /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle --load_path_reward /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/save/idea1_model/idea_3_descriminator.mdl
+then add init stuff in ppo.init
+then add reward function in ppo, implement it in ppo.upgrade. # A_sa, v_target = self.est_adv(r, v, mask)
+then add function of load model in ppo, implement it in ppo/train.py, modify args of load_reward_model
+then run the code, remember you have to check if there is two models loaded, one is mle, one is reward model.
+"""

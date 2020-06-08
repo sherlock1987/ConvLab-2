@@ -15,7 +15,7 @@ import zipfile
 import sys
 
 from convlab2.policy.mle.idea2_predict_next_action import Reward_predict
-from convlab2.policy.mle.idea_3_max_margin import Reward_max
+from convlab2.policy.mle.idea_3_max_margin import Reward_max_margin
 
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 sys.path.append(root_dir)
@@ -55,6 +55,8 @@ class PPO(Policy):
         self.reward_predictor = Reward_predict(549, 457, 209)
         self.reward_optim = optim.Adam(self.reward_predictor.parameters(), lr=1e-4)
         self.loss_record = []
+
+        self.reward_idea3 = Reward_max_margin(549,209)
 
     def predict(self, state):
         """
@@ -168,7 +170,55 @@ class PPO(Policy):
                 #             when the lengh is 1, the start reward is 1
                 reward_predict.append(1)
         # add the bellman equation
-        reward_bell_man = self.reward_predictor.bellman_equation(tensor(reward_predict), mask, self.gamma)
+        reward_predict = tensor(reward_predict)
+        reward_bell_man = self.reward_predictor.bellman_equation(reward_predict, mask, self.gamma)
+        A_sa, v_target = self.est_adv(reward_predict, v, mask)
+        return A_sa, reward_bell_man
+
+    def reward_estimate_idea3(self,r, v, s, a, mask):
+        """
+        we save a trajectory in continuous space and it reaches the ending of current trajectory when mask=0.
+        :param r: reward, Tensor, [b]
+        :param v: estimated value, Tensor, [b]
+        :param mask: indicates ending for 0 otherwise 1, Tensor, [b]
+        :return: A(s, a), V-target(s), both Tensor
+        """
+        reward_predict = []
+        batchsz = r.shape[0]
+        s_temp = torch.tensor([])
+        a_temp = torch.tensor([])
+        for i in range(batchsz):
+            # current　states and actions
+            s_1 = s[i].unsqueeze(0)
+            a_1 = a[i].unsqueeze(0)
+            try:
+                s_temp = torch.cat((s_temp, s_1), 0)
+                a_temp = torch.cat((a_temp, a_1), 0)
+            except Exception as e:
+                s_temp = s_1
+                a_temp = a_1
+
+            s_train = s_temp.unsqueeze(0).float()
+            a_train = a_temp.unsqueeze(0).float()
+            input = torch.cat((s_train, a_train), 2)
+            # 长度大于2 的话呢.
+            if len(input[0]) >= 2:
+                # print(input_pre.shape,input_bf.shape,target.shape)
+                if int(mask[i]) == 0:
+                    # for the last one, the reward should follow the system.
+                    cur_reward = r[i]
+                    s_temp = torch.tensor([])
+                    a_temp = torch.tensor([])
+                #   compute the last one, terminate clear the button, that is okay for us.
+                else:
+                    with torch.no_grad():
+                        cur_reward = self.reward_idea3.compute_reward(input)
+                reward_predict.append(cur_reward.item())
+            else:
+                #             when the lengh is 1, the start reward is 1
+                reward_predict.append(1)
+        # add the bellman equation
+        reward_bell_man = self.reward_idea3.bellman_equation(tensor(reward_predict), mask, self.gamma)
         A_sa, v_target = self.est_adv(r, v, mask)
         return A_sa, reward_bell_man
 
@@ -183,7 +233,8 @@ class PPO(Policy):
         # leave the V alone, just forget about it.
 
         # A_sa, v_target = self.est_adv(r, v, mask)
-        A_sa, v_target = self.reward_estimate(r, v, s, a, mask)
+        # A_sa, v_target = self.reward_estimate(r, v, s, a, mask)
+        A_sa, v_target = self.reward_estimate_idea3(r, v, s, a, mask)
 
         for i in range(self.update_round):
 
@@ -303,9 +354,23 @@ class PPO(Policy):
         ]
         for policy_mdl in policy_mdl_candidates:
             if os.path.exists(policy_mdl):
-                network = torch.load(policy_mdl)
                 self.reward_predictor.load_state_dict(torch.load(policy_mdl, map_location=DEVICE))
                 logging.info('<<dialog policy>> loaded reward model checkpoint from file: {}'.format(policy_mdl))
+                break
+
+    def load_reward_model_idea3(self, filename):
+        policy_mdl_candidates = [
+            filename,
+            filename + '.pol.mdl',
+            filename + '_pg.pol.mdl',
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), filename),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), filename + '.pol.mdl'),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), filename + '_pg.pol.mdl')
+        ]
+        for policy_mdl in policy_mdl_candidates:
+            if os.path.exists(policy_mdl):
+                self.reward_idea3.load_state_dict(torch.load(policy_mdl, map_location=DEVICE))
+                logging.info('<<dialog policy>> loaded reward_idea3 model checkpoint from file: {}'.format(policy_mdl))
                 break
 
     def load_from_pretrained(self, archive_file, model_file, filename):

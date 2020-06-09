@@ -498,6 +498,7 @@ if __name__ == "__main__":
 # extremelly quick when using this one, much more stable than the previous one, and also the rewards2 have some bugs, remember to modify it.
 # [0.52, 0.57, 0.55, 0.58, 0.57, 0.55, 0.54, 0.58, 0.55, 0.53, 0.55, 0.53, 0.54, 0.55, 0.57, 0.53, 0.55, 0.54, 0.56, 0.56, 0.55, 0.54, 0.57, 0.56, 0.58, 0.6, 0.6, 0.55, 0.57, 0.57, 0.58, 0.58, 0.59, 0.57, 0.57, 0.57, 0.57, 0.57, 0.56, 0.58]
 # 200 what will look like? this and the MLE process?
+
 """"
 Description for how to use this file
 args:

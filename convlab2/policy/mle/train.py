@@ -271,7 +271,125 @@ class MLE_Trainer_Abstract():
             plt.ylabel('Embedding Loss')
             plt.show()
 
+    def auto_encoder_training(self,epoch):
+        self.reward_predictor_idea3.train()
+        s_temp = torch.tensor([])
+        a_temp = torch.tensor([])
+        loss = torch.tensor([0]).float()
 
+        for i, data in enumerate(self.data_train):
+            # curr_state is everything, contains domain, action, bf, and also user action.
+            curr_state = self.state_whole["train"][i]
+            fake_action = self.generator_fake.predict(curr_state)
+            s, a = to_device(data)
+            # s_temp = s[:i+1]
+            try:
+                s_temp = torch.cat((s_temp, s), 0)
+                a_temp = torch.cat((a_temp, a), 0)
+            except Exception as e:
+                s_temp = s
+                a_temp = a
+            # [ , , ]
+            s_train = s_temp.unsqueeze(0)
+            a_train = a_temp.unsqueeze(0)
+            # print(s_train.shape)
+            if len(s_train[0]) >= 2:
+                # print("-"*300)
+                input_real = torch.cat((s_train, a_train), 2)[0][:-1].unsqueeze(0)
+                # construct the data from fake
+                #
+                a_train_pre = a_train[0][:-1]
+                fake_a = fake_action.unsqueeze(0).float()
+                a_train_fake = torch.cat((a_train_pre, fake_a), 0)
+                input_fake = torch.cat((s_train, a_train_fake.unsqueeze(0)), 2)
+                # constrcut stuff for advantage LSTM
+                s_train_pre = s_train[0][:-1]
+                # [ , , ]
+                input_pre = torch.cat((s_train_pre, a_train_pre), 1).unsqueeze(0)
+                s_last = s_train[0][-1]
+                a_last = a_train[0][-1]
+                input_last_real = torch.cat((s_last, a_last)).unsqueeze(0).unsqueeze(0)
+                input_last_fake = torch.cat((s_last.unsqueeze(0), fake_a), 1).unsqueeze(0)
+                # print(input_pre.shape,input_bf.shape,target.shape)
+                terminate = self.terminate_train["train"][i]
+
+                if terminate == False:
+                    """
+                    micro_loss, res_1, res_2 = self.reward_predictor_idea3.loss(input_real,input_fake,a_temp[-1].unsqueeze(0),fake_a)
+                    self.success.append(res_1)
+                    self.success.append(res_2)
+                    if len(self.success) == 100:
+                        curr_res = np.sum(self.success)/100
+                        print("fail: ", curr_res)
+                        self.success_plot.append(curr_res)
+                        self.success = []
+                    """
+                    # """
+                    # method 2
+                    micro_loss, res = self.reward_predictor_idea3.loss_plus_lstm(input_real, input_fake)
+                    self.success.append(res)
+                    if len(self.success) == 100:
+                        curr_res = np.sum(self.success) / 100
+                        print("fail: ", curr_res)
+                        self.success_plot.append(curr_res)
+                        self.success = []
+                    # """
+                    loss += micro_loss
+
+                else:
+                    # predict the last one and then loss backward and then clear the button
+                    """
+                    micro_loss, res_1, res_2 = self.reward_predictor_idea3.loss(input_real,input_fake,a_temp[-1].unsqueeze(0),fake_a)
+                    self.success.append(res_1)
+                    self.success.append(res_2)
+                    if len(self.success) == 100:
+                        curr_res = np.sum(self.success)/100
+                        print("fail: ", curr_res)
+                        self.success_plot.append(curr_res)
+                        self.success = []
+                    """
+                    # """
+                    # method 2
+                    micro_loss, res = self.reward_predictor_idea3.loss_plus_lstm(input_real, input_fake)
+                    self.success.append(res)
+                    if len(self.success) == 100:
+                        curr_res = np.sum(self.success) / 100
+                        print("fail: ", curr_res)
+                        self.success_plot.append(curr_res)
+                        self.success = []
+                    # """
+                    loss += micro_loss
+                    len_dia = len(s_temp)
+                    # print(loss.item()/len_dia)
+                    if loss != torch.tensor([0]).float():
+                        # print(loss, loss.dtype)
+                        loss.backward()
+                        # to check if still have gradients
+                        # for name, param in self.reward_predictor_idea3.named_parameters():
+                        #     if "cnn" not in name:
+                        #         print(name)
+                        #         print(param.grad)
+                        self.reward_optim_idea3.step()
+                        self.reward_optim_idea3.zero_grad()
+                        self.loss_record.append(loss.item() / len_dia)
+                        # clear the button
+                        s_temp = torch.tensor([])
+                        a_temp = torch.tensor([])
+                        loss = torch.tensor([0]).float()
+        #         remember to save the model
+
+        if (epoch + 1) % self.save_per_epoch == 0:
+            self.reward_model_save_idea3(self.save_dir, epoch)
+            print("total fail rate", np.sum(self.success) / len(self.success))
+            print(self.success)
+            print(self.success_plot)
+            plot_stuff = self.success_plot
+            # plot
+            axis = [i for i in range(len(plot_stuff))]
+            plt.plot(axis, plot_stuff)
+            plt.xlabel('Number of dialogues')
+            plt.ylabel('Embedding Loss')
+            plt.show()
     def imitating(self, epoch):
         """
         pretrain the policy by simple imitation learning (behavioral cloning)

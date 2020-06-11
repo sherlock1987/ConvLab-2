@@ -104,8 +104,6 @@ class RecurrentAutoencoder(nn.Module):
             # [209]
             return hidden_states.squeeze(0).squeeze(0)
 
-
-
 def auto_encoder(data_train):
     model = RecurrentAutoencoder(549,209)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)

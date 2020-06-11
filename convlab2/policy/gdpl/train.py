@@ -176,6 +176,6 @@ if __name__ == '__main__':
 
     for i in range(args.epoch):
         update(env, policy_sys, args.batchsz, i, args.process_num, rewarder)
-
-# --load_path
-# /home/raliegh/视频/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle
+"""
+--load_path /home/raliegh/视频/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle
+"""

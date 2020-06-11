@@ -380,18 +380,13 @@ def create_file_list(dir):
     files.sort()
 
     for file in files:
-        if file[:3].isnumeric():
-            num.append(int(file[:3]))
-        elif file[:2].isnumeric():
-            num.append(int(file[:2]))
-        else:
-            num.append(int(file[0]))
-        # try:
-        #     num_index = int(file[:2])
-        #     num.append(num_index)
-        # except Exception as e:
-        #     num_index = int(file[0])
-        #     num.append(num_index)
+        if os.path.isfile(path+"/"+file):
+            if file[:3].isnumeric():
+                num.append(int(file[:3]))
+            elif file[:2].isnumeric():
+                num.append(int(file[:2]))
+            else:
+                num.append(int(file[0]))
 
     num = list(set(num))
     num.sort()
@@ -418,7 +413,8 @@ sample_dict = {
     'attraction': [1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
     'hotel': [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
               1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-    'taxi': [1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0], 'hospital': [1]}
+    'taxi': [1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0],
+    'hospital': [1]}
 
 if __name__ == "__main__":
 

@@ -58,7 +58,7 @@ class GDPL(Policy):
         """
         s_vec = torch.Tensor(self.vector.state_vectorize(state))
         a = self.policy.select_action(s_vec.to(device=DEVICE), self.is_train).cpu()
-        action = self.vector.action_devectorize(a.numpy())
+        action = self.vector.action_devectorize(a.detach().numpy())
         state['system_action'] = action
         return action
 
@@ -173,9 +173,10 @@ class GDPL(Policy):
                 # we add negative symbol to convert gradient ascent to gradient descent
                 surrogate = - torch.min(surrogate1, surrogate2).mean()
                 policy_loss += surrogate.item()
-
                 # backprop
                 surrogate.backward()
+                for p in self.policy.parameters():
+                    p.grad[p.grad != p.grad] = 0.0
                 # gradient clipping, for stability
                 torch.nn.utils.clip_grad_norm(self.policy.parameters(), 10)
                 # self.lock.acquire() # retain lock to update weights

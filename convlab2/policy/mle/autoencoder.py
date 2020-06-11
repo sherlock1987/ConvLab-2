@@ -84,7 +84,7 @@ class Decoder(nn.Module):
         return self.rescaler(output[0])
 
 class RecurrentAutoencoder(nn.Module):
-    def __init__(self, input_size, embedding_dim=209):
+    def __init__(self, input_size, embedding_dim= 1098):
         super(RecurrentAutoencoder, self).__init__()
         self.seq_len = None
         self.encoder = Encoder(self.seq_len, input_size, embedding_dim).to(DEVICE)
@@ -97,44 +97,54 @@ class RecurrentAutoencoder(nn.Module):
         return x
 
 
+    def compress(self,input):
+        with torch.no_grad():
+            seq_len = len(input[0])
+            hidden_states = self.encoder(seq_len, input)
+            # [209]
+            return hidden_states.squeeze(0).squeeze(0)
+
+
+
 def auto_encoder(data_train):
     model = RecurrentAutoencoder(549,209)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     criterion = nn.L1Loss(reduction='sum').to(DEVICE)
-    criterion_cosine = nn.CosineEmbeddingLoss(reduction="sum")
+    # criterion_cosine = nn.CosineEmbeddingLoss(reduction="sum")
     model = model.train()
-    train_losses = []
-    for i in tqdm(range(len(data_train))):
-    # for i in (range(1000)):
-        seq_true = data_train[i]
-        optimizer.zero_grad()
-        seq_true = seq_true.to(DEVICE)
-        seq_pred = model(seq_true)
-        # seq_true = seq_true + 1e-4
-        # seq_pred = seq_pred + 1e-4
-        # print(torch.sum(seq_pred, dim = 1))
+    epoch = 3
+    train_loss_whole = []
+    for j in range(epoch):
+        train_losses = []
+        for i in tqdm(range(len(data_train))):
+        # for i in (range(10)):
+            seq_true = data_train[i]
+            optimizer.zero_grad()
+            seq_true = seq_true.to(DEVICE)
+            seq_pred = model(seq_true)
+            # seq_true = seq_true + 1e-4
+            # seq_pred = seq_pred + 1e-4
+            # print(torch.sum(seq_pred, dim = 1))
 
-        loss = criterion(seq_pred, seq_true.squeeze(0))
-        with torch.no_grad():
-            # print(seq_true.shape, seq_pred.shape)
-            loss_1 = criterion_cosine(seq_pred, seq_true.squeeze(0),target = tensor(1))
-            # print(loss_1)
-        # loss = criterion(seq_pred, seq_true, target = tensor(1))
-        loss.backward()
-        optimizer.step()
-        train_losses.append(loss.item()/len(seq_true[0]))
-        # for name, param in model.named_parameters():
-        #     if "output_layer" not in name:
-        #         print(name)
-        #         print(param.grad)
-        #         pass
-    train_loss = np.mean(train_losses)
+            loss = criterion(seq_pred, seq_true.squeeze(0))
+            # loss = criterion(seq_pred, seq_true, target = tensor(1))
+            loss.backward()
+            optimizer.step()
+            train_losses.append(loss.item()/len(seq_true[0]))
+            train_loss_whole.append(loss.item()/len(seq_true[0]))
+            # for name, param in model.named_parameters():
+            #     if "output_layer" not in name:
+            #         print(name)
+            #         print(param.grad)
+            #         pass
+        train_loss = np.mean(train_losses)
+        # my_y_ticks = np.arange(0, 2, 0.05)
+        print("current epoch is :"+str(j)," loss is: ",train_loss)
+    # save current model.
+    torch.save(model.state_dict(),"/home/raliegh/图片/ConvLab-2/convlab2/policy/mle/" + "auto_encoder.pol.mdl")
+
     my_y_ticks = np.arange(0, 500, 50)
-    # my_y_ticks = np.arange(0, 2, 0.05)
-
-    print(train_losses)
-    print(train_loss)
-    axis = [i for i in range(len(train_losses))]
-    plt.plot(axis, train_losses)
+    axis = [i for i in range(len(train_loss_whole))]
+    plt.plot(axis, train_loss_whole)
     plt.yticks(my_y_ticks)
     plt.show()

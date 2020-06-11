@@ -168,7 +168,7 @@ if __name__ == '__main__':
     policy_sys = PPO(True)
     policy_sys.load(args.load_path)
     # policy_sys.load_reward_model(args.load_path_reward)
-    policy_sys.load_reward_model_idea3(args.load_path_reward)
+    # policy_sys.load_reward_model_idea3(args.load_path_reward)
 
     # not use dst
     dst_usr = None

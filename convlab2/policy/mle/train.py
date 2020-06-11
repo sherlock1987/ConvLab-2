@@ -275,6 +275,7 @@ class MLE_Trainer_Abstract():
         s_temp = torch.tensor([])
         a_temp = torch.tensor([])
         data_list = []
+        data_tensor = torch.tensor([])
         for i, data in enumerate(self.data_train):
             s, a = to_device(data)
             try:
@@ -311,6 +312,7 @@ class MLE_Trainer_Abstract():
 
         print("finish creating dataset for auto-encoder")
         print("start training auto-encoder")
+        print(type(data_list))
         auto_encoder(data_list)
         if (epoch + 1) % self.save_per_epoch == 0:
             self.reward_model_save_idea3(self.save_dir, epoch)

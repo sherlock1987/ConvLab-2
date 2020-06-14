@@ -84,7 +84,7 @@ class Decoder(nn.Module):
         return self.rescaler(output[0])
 
 class RecurrentAutoencoder(nn.Module):
-    def __init__(self, input_size, embedding_dim= 1098):
+    def __init__(self, input_size, embedding_dim=209):
         super(RecurrentAutoencoder, self).__init__()
         self.seq_len = None
         self.encoder = Encoder(self.seq_len, input_size, embedding_dim).to(DEVICE)
@@ -96,6 +96,8 @@ class RecurrentAutoencoder(nn.Module):
         x = self.decoder(seq_len, x)
         return x
 
+    def load_model(self,path):
+        pass
 
     def compress(self,input):
         with torch.no_grad():
@@ -103,6 +105,8 @@ class RecurrentAutoencoder(nn.Module):
             hidden_states = self.encoder(seq_len, input)
             # [209]
             return hidden_states.squeeze(0).squeeze(0)
+        
+        
 
 def auto_encoder(data_train):
     model = RecurrentAutoencoder(549,209)

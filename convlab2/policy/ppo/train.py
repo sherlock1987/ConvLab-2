@@ -162,6 +162,7 @@ if __name__ == '__main__':
     parser.add_argument("--process_num", type=int, default=4, help="number of processes of trajactory sampling")
     args = parser.parse_args()
 
+
     # simple rule DST
     dst_sys = RuleDST()
 

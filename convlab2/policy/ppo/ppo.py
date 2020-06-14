@@ -68,7 +68,7 @@ class PPO(Policy):
         """
         s_vec = torch.Tensor(self.vector.state_vectorize(state))
         a = self.policy.select_action(s_vec.to(device=DEVICE), False).cpu()
-        action = self.vector.action_devectorize(a.detach().numpy())
+        action = self.vector.action_devectorize(a.numpy())
         state['system_action'] = action
         return action
 

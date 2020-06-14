@@ -154,9 +154,9 @@ def update(env, policy, batchsz, epoch, process_num, rewarder):
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("--load_path", type=str, default="", help="path of model to load")
-    parser.add_argument("--batchsz", type=int, default=1024, help="batch size of trajactory sampling")
-    parser.add_argument("--epoch", type=int, default=200, help="number of epochs to train")
-    parser.add_argument("--process_num", type=int, default=8, help="number of processes of trajactory sampling")
+    parser.add_argument("--batchsz", type=int, default=512, help="batch size of trajactory sampling")
+    parser.add_argument("--epoch", type=int, default=30, help="number of epochs to train")
+    parser.add_argument("--process_num", type=int, default=4, help="number of processes of trajactory sampling")
     args = parser.parse_args()
     # simple rule DST
     dst_sys = RuleDST()
@@ -164,6 +164,7 @@ if __name__ == '__main__':
     policy_sys = GDPL(True)
     policy_sys.load(args.load_path)
     rewarder = RewardEstimator(policy_sys.vector, False)
+
 
     # not use dst
     dst_usr = None
@@ -173,9 +174,12 @@ if __name__ == '__main__':
     simulator = PipelineAgent(None, None, policy_usr, None, 'user')
 
     env = Environment(None, simulator, None, dst_sys)
+    if DEVICE != torch.device('cuda'):
+        print("go to see cuda stuff")
+        raise Exception
 
     for i in range(args.epoch):
         update(env, policy_sys, args.batchsz, i, args.process_num, rewarder)
 """
---load_path /home/raliegh/视频/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle
+--load_path /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle
 """

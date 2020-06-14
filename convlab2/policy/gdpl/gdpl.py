@@ -58,7 +58,7 @@ class GDPL(Policy):
         """
         s_vec = torch.Tensor(self.vector.state_vectorize(state))
         a = self.policy.select_action(s_vec.to(device=DEVICE), self.is_train).cpu()
-        action = self.vector.action_devectorize(a.detach().numpy())
+        action = self.vector.action_devectorize(a.numpy())
         state['system_action'] = action
         return action
 
@@ -125,7 +125,8 @@ class GDPL(Policy):
         # estimate advantage and v_target according to GAE and Bellman Equation
         r = rewarder.estimate(s, a, next_s, log_pi_old_sa).detach()
         A_sa, v_target = self.est_adv(r, v, mask)
-        
+
+
         for i in range(self.update_round):
 
             # 1. shuffle current batch

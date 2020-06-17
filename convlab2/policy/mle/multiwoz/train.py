@@ -46,8 +46,8 @@ if __name__ == '__main__':
 
     best = float('inf')
     for e in range(cfg['epoch']):
-        # agent.imitating(e)
+        agent.imitating(e)
         # best = agent.imit_test(e, best)
         # agent.reward_training_idea_3(e)
         # best = agent.reward_validate_idea_3(e, best)
-        agent.auto_encoder_training(e)
+        # agent.auto_encoder_training(e)

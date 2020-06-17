@@ -1,20 +1,16 @@
 import os
 import torch
 import logging
-import torch.nn as nn
 import numpy as np
 from convlab2.util.train_util import to_device
 import torch.nn as nn
 from torch import optim
 from .idea_3_max_margin import Reward_max_margin
-import zipfile
-import sys
 import matplotlib.pyplot  as plt
 import pickle
-from convlab2.policy.mle.Fake_data_generator import PG_generator
+
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-import torch.tensor as tensor
-from .autoencoder import auto_encoder
+from convlab2.policy.mle.idea4.autoencoder import auto_encoder
 
 class Reward_predict(nn.Module):
     def __init__(self, input_size, hidden_size, output_size):
@@ -80,6 +76,7 @@ class MLE_Trainer_Abstract():
                 self.state_whole[part] = pickle.load(f)
 
     def policy_loop(self, data):
+        # this is from states to predict the a, pretty similar to idea2
         s, target_a = to_device(data)
         a_weights = self.policy(s)
 

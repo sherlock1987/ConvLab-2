@@ -9,7 +9,6 @@ from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 from collections import OrderedDict, defaultdict
 import pickle
-from ptb import PTB
 from utils import to_var, idx2word, expierment_name
 from model_dialogue import dialogue_VAE
 
@@ -30,8 +29,8 @@ def main(args):
         #     min_occ=args.min_occ
         # )
         with open(os.path.join("//home//raliegh//图片//ConvLab-2//convlab2//policy//mle//multiwoz//processed_data",
-                               'input_data_train.pkl'), 'rb') as f:
-            datasets = pickle.load(f)
+                               'input_data_{}.pkl'.format(split)), 'rb') as f:
+            datasets[split] = pickle.load(f)
 
     model = dialogue_VAE(
         max_sequence_length=args.max_sequence_length,
@@ -75,7 +74,7 @@ def main(args):
         elif anneal_function == 'linear':
             return min(1, step/x0)
 
-    NLL = torch.nn.NLLLoss(size_average=False)
+    # NLL = torch.nn.NLLLoss(size_average=False)
 
     Reconstruction_loss = torch.nn.BCELoss(reduction="sum")
 
@@ -111,7 +110,7 @@ def main(args):
             #     # num_workers=cpu_count(),
             #     # pin_memory=torch.cuda.is_available()
             # )
-            data_loader = datasets[split]
+            data_loader = datasets[split][split]
 
             tracker = defaultdict(tensor)
 
@@ -127,12 +126,13 @@ def main(args):
                 max_len = max(max_len, batch.size(1))
                 if (iteration+1) % args.batch_size == 0:
                     batch_size = len(temp)
+
                     # Forward pass
                     input, logp, mean, logv, z = model(temp, max_len)
 
-                    if epoch == args.epochs-1:
-                        print(logp)
-                        print(input)
+                    if epoch == args.epochs - 1:
+                        print(input, logp)
+                        print(torch.sum((logp>0.5).float()))
                         break
 
                     # loss calculation
@@ -150,16 +150,19 @@ def main(args):
 
                     # bookkeepeing
                     tracker['ELBO'] = torch.cat((tracker['ELBO'], loss.detach().unsqueeze(0)))
+                    if split == "test":
+                        test_loss = torch.sum(torch.abs((logp > 0.5).type(torch.FloatTensor) - input)).to("cuda")
+                        tracker['test_diff'] = torch.cat((tracker['test_diff'], test_loss.unsqueeze(0)))
 
-                    if args.tensorboard_logging:
-                        writer.add_scalar("%s/ELBO"%split.upper(), loss.data[0], epoch*len(data_loader) + batchID)
-                        writer.add_scalar("%s/NLL Loss"%split.upper(), NLL_loss.data[0]/batch_size, epoch*len(data_loader) + batchID)
-                        writer.add_scalar("%s/KL Loss"%split.upper(), KL_loss.data[0]/batch_size, epoch*len(data_loader) + batchID)
-                        writer.add_scalar("%s/KL Weight"%split.upper(), KL_weight, epoch*len(data_loader) + batchID)
+                    if args.tensorboard_logging and (batchID+1) % args.print_every == 0:
+                        writer.add_scalar("%s/ELBO"%split.upper(), loss.item()/batch_size,  batchID)
+                        writer.add_scalar("%s/NLL Loss"%split.upper(), NLL_loss.item()/batch_size,  batchID)
+                        writer.add_scalar("%s/KL Loss"%split.upper(), KL_loss.item()/batch_size,  batchID)
+                        writer.add_scalar("%s/KL Weight"%split.upper(), KL_weight, batchID)
 
-                    if (batchID+1) % args.print_every == 0: # or iteration+1 == len(data_loader):
-                        print("%s Batch %04d/%i, Loss %9.4f, NLL-Loss %9.4f, KL-Loss %9.4f, KL-Weight %6.3f"
-                            %(split.upper(), batchID, len(data_loader)-1, loss.item()/batch_size, NLL_loss.item()/batch_size, KL_loss.item()/batch_size, KL_weight))
+                    # if (batchID+1) % args.print_every == 0: # or iteration+1 == len(data_loader):
+                    #     print("%s Batch %04d/%i, Loss %9.4f, NLL-Loss %9.4f, KL-Loss %9.4f, KL-Weight %6.3f"
+                    #         %(split.upper(), batchID, len(data_loader)-1, loss.item()/batch_size, NLL_loss.item()/batch_size, KL_loss.item()/batch_size, KL_weight))
 
                     if split == 'valid':
                         if 'target_sents' not in tracker:
@@ -167,12 +170,13 @@ def main(args):
 
                         tracker['target_sents'] += idx2word(batch['target'].tolist(), i2w=datasets['train'].get_i2w(), pad_idx=datasets['train'].pad_idx)
                         tracker['z'] = torch.cat((tracker['z'], z.data), dim=0)
+
                     temp = []
                     max_len = 0
                     batchID += 1
             print("%s Epoch %02d/%i, Mean ELBO %9.4f"%(split.upper(), epoch, args.epochs, torch.mean(tracker['ELBO'])/args.batch_size ))
-
-
+            if split == "test":
+                print(torch.mean(tracker['test_diff']) / args.batch_size)
 
             if args.tensorboard_logging:
                 writer.add_scalar("%s-Epoch/ELBO"%split.upper(), torch.mean(tracker['ELBO']), epoch)
@@ -186,7 +190,7 @@ def main(args):
                     json.dump(dump,dump_file)
 
             # save checkpoint
-            if split == 'train':
+            if split == 'train' and (epoch+1) % 10 == 0:
                 checkpoint_path = os.path.join(save_model_path, "E%i.pytorch"%(epoch))
                 torch.save(model.state_dict(), checkpoint_path)
                 print("Model saved at %s"%checkpoint_path)
@@ -202,7 +206,7 @@ if __name__ == '__main__':
     parser.add_argument('--min_occ', type=int, default=1)
     parser.add_argument('--test', action='store_true')
 
-    parser.add_argument('-ep', '--epochs', type=int, default=50)
+    parser.add_argument('-ep', '--epochs', type=int, default=20)
     parser.add_argument('-bs', '--batch_size', type=int, default=32)
     parser.add_argument('-lr', '--learning_rate', type=float, default=0.001)
 
@@ -211,7 +215,7 @@ if __name__ == '__main__':
     parser.add_argument('-hs', '--hidden_size', type=int, default=512)
     parser.add_argument('-nl', '--num_layers', type=int, default=1)
     parser.add_argument('-bi', '--bidirectional', action='store_true')
-    parser.add_argument('-ls', '--latent_size', type=int, default=16)
+    parser.add_argument('-ls', '--latent_size', type=int, default=64)
     parser.add_argument('-wd', '--word_dropout', type=float, default=0)
     parser.add_argument('-ed', '--embedding_dropout', type=float, default=0.5)
 
@@ -219,7 +223,7 @@ if __name__ == '__main__':
     parser.add_argument('-k', '--k', type=float, default=0.0025)
     parser.add_argument('-x0', '--x0', type=int, default=2500)
 
-    parser.add_argument('-v','--print_every', type=int, default=200)
+    parser.add_argument('-v','--print_every', type=int, default=20)
     parser.add_argument('-tb','--tensorboard_logging', action='store_true')
     parser.add_argument('-log','--logdir', type=str, default='logs')
     parser.add_argument('-bin','--save_model_path', type=str, default='bin')

@@ -20,7 +20,7 @@ class dialogue_VAE(nn.Module):
 
         self.word_dropout_rate = word_dropout
         # self.embedding_dropout = nn.Dropout(p=embedding_dropout)
-        self.dropout = nn.Dropout(p=1)
+        self.dropout = nn.Dropout(p=0.5)
 
         if rnn_type == 'rnn':
             rnn = nn.RNN
@@ -31,6 +31,7 @@ class dialogue_VAE(nn.Module):
         else:
             raise ValueError()
         self.input_size = embedding_size
+        self.linear1 = nn.Linear(embedding_size,hidden_size)
         self.encoder_rnn = rnn(embedding_size, hidden_size, num_layers=num_layers, bidirectional=self.bidirectional, batch_first=True)
         self.decoder_rnn = rnn(embedding_size, hidden_size, num_layers=num_layers, bidirectional=self.bidirectional, batch_first=True)
 
@@ -40,6 +41,8 @@ class dialogue_VAE(nn.Module):
         self.hidden2logv = nn.Linear(hidden_size * self.hidden_factor, latent_size)
         self.latent2hidden = nn.Linear(latent_size, hidden_size * self.hidden_factor)
         self.output_layer = nn.Linear(hidden_size * (2 if bidirectional else 1), embedding_size)
+        self.sigmoid = nn.Sigmoid()
+        self.relu = nn.ReLU()
 
     def forward(self, input_sequence, max_len):
         """
@@ -52,6 +55,7 @@ class dialogue_VAE(nn.Module):
         # ENCODER
         # pack stuff and unpack stuff later.
         original_input_tensor, pack_input_sequence, sorted_lengths, sorted_idx = self.concatenate_zero(input_sequence, max_len)
+        #pack_input_sequence = self.relu(self.linear1(pack_input_sequence.to("cuda")))
         packed_input = rnn_utils.pack_padded_sequence(pack_input_sequence.to("cuda"), sorted_lengths.data.tolist(), batch_first=True)
 
         _, hidden = self.encoder_rnn(packed_input)
@@ -87,20 +91,22 @@ class dialogue_VAE(nn.Module):
         # decoder forward pass
         # hidden comes from encoder, coming from laten variable.
         # hidden [ , , ] three dimention
-        input_dropout = self.dropout(original_input_tensor)
+
+        input_dropout = self.dropout(original_input_tensor)#self.relu(self.linear1(original_input_tensor.to("cuda"))))
         # pack stuff
         packed_input = rnn_utils.pack_padded_sequence(input_dropout.to("cuda"), sorted_lengths.data.tolist(), batch_first=True)
 
         outputs, _ = self.decoder_rnn(packed_input, hidden)
         # output layer first!
         # unpack stuff
+
         padded_outputs = rnn_utils.pad_packed_sequence(outputs, batch_first=True,padding_value=0.0)[0]
         padded_outputs = padded_outputs.contiguous()
         _, reversed_idx = torch.sort(sorted_idx)
         padded_outputs = padded_outputs[reversed_idx]
         # b,s,_ = padded_outputs.size()
 
-        outputs_layer = self.output_layer(padded_outputs)
+        outputs_layer = self.sigmoid(self.output_layer(padded_outputs))
 
         # z is the distribution.
         # outputs = self.output_layer(padded_outputs)

@@ -89,7 +89,7 @@ By running `convlab2/policy/evalutate.py --model_name $model`
 | --------- | ----------------- |
 | MLE       | 0.56              | 
 | PG        | 0.54              |
-| PPO       | 0.74              |
+| PPO       | 0.82              |
 | GDPL      | 0.58              | 
 | idea2     | 0.56              |
 | idea3     | 0.6               | 

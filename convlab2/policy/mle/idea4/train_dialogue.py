@@ -77,7 +77,7 @@ def main(args):
 
     NLL = torch.nn.NLLLoss(size_average=False)
 
-    Reconstruction_loss = torch.nn.L1Loss(reduction='sum')
+    Reconstruction_loss = torch.nn.BCELoss(reduction="sum")
 
     def loss_fn(logp, target, length, mean, logv, anneal_function, step, k, x0):
 
@@ -87,7 +87,7 @@ def main(args):
         
         # Negative Log Likelihood
         # NLL_loss = NLL(logp, target)
-        loss = Reconstruction_loss(logp , target)
+        loss = Reconstruction_loss(logp, target)
 
         # KL Divergence
         KL_loss = -0.5 * torch.sum(1 + logv - mean.pow(2) - logv.exp())
@@ -100,6 +100,7 @@ def main(args):
     tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
     step = 0
     # start from here.
+    batchID = 0
     for epoch in range(args.epochs):
         for split in splits:
 
@@ -125,15 +126,20 @@ def main(args):
                 temp.append(batch)
                 max_len = max(max_len, batch.size(1))
                 if (iteration+1) % args.batch_size == 0:
-                    batch_size = batch.size(0)
+                    batch_size = len(temp)
                     # Forward pass
                     input, logp, mean, logv, z = model(temp, max_len)
 
+                    if epoch == args.epochs-1:
+                        print(logp)
+                        print(input)
+                        break
+
                     # loss calculation
-                    NLL_loss, KL_loss, KL_weight = loss_fn(logp, input,
+                    NLL_loss, KL_loss, KL_weight = loss_fn(logp, input.to("cuda"),
                         max_len, mean, logv, args.anneal_function, step, args.k, args.x0)
 
-                    loss = (NLL_loss + KL_weight * KL_loss)/batch_size
+                    loss = (NLL_loss + KL_weight * KL_loss)
 
                     # backward + optimization
                     if split == 'train':
@@ -146,14 +152,14 @@ def main(args):
                     tracker['ELBO'] = torch.cat((tracker['ELBO'], loss.detach().unsqueeze(0)))
 
                     if args.tensorboard_logging:
-                        writer.add_scalar("%s/ELBO"%split.upper(), loss.data[0], epoch*len(data_loader) + iteration)
-                        writer.add_scalar("%s/NLL Loss"%split.upper(), NLL_loss.data[0]/batch_size, epoch*len(data_loader) + iteration)
-                        writer.add_scalar("%s/KL Loss"%split.upper(), KL_loss.data[0]/batch_size, epoch*len(data_loader) + iteration)
-                        writer.add_scalar("%s/KL Weight"%split.upper(), KL_weight, epoch*len(data_loader) + iteration)
+                        writer.add_scalar("%s/ELBO"%split.upper(), loss.data[0], epoch*len(data_loader) + batchID)
+                        writer.add_scalar("%s/NLL Loss"%split.upper(), NLL_loss.data[0]/batch_size, epoch*len(data_loader) + batchID)
+                        writer.add_scalar("%s/KL Loss"%split.upper(), KL_loss.data[0]/batch_size, epoch*len(data_loader) + batchID)
+                        writer.add_scalar("%s/KL Weight"%split.upper(), KL_weight, epoch*len(data_loader) + batchID)
 
-                    if iteration % args.print_every == 0 or iteration+1 == len(data_loader):
+                    if (batchID+1) % args.print_every == 0: # or iteration+1 == len(data_loader):
                         print("%s Batch %04d/%i, Loss %9.4f, NLL-Loss %9.4f, KL-Loss %9.4f, KL-Weight %6.3f"
-                            %(split.upper(), iteration, len(data_loader)-1, loss.item(), NLL_loss.item()/batch_size/len_dialogue, KL_loss.item()/batch_size, KL_weight))
+                            %(split.upper(), batchID, len(data_loader)-1, loss.item()/batch_size, NLL_loss.item()/batch_size, KL_loss.item()/batch_size, KL_weight))
 
                     if split == 'valid':
                         if 'target_sents' not in tracker:
@@ -163,7 +169,10 @@ def main(args):
                         tracker['z'] = torch.cat((tracker['z'], z.data), dim=0)
                     temp = []
                     max_len = 0
-            print("%s Epoch %02d/%i, Mean ELBO %9.4f"%(split.upper(), epoch, args.epochs, torch.mean(tracker['ELBO'])))
+                    batchID += 1
+            print("%s Epoch %02d/%i, Mean ELBO %9.4f"%(split.upper(), epoch, args.epochs, torch.mean(tracker['ELBO'])/args.batch_size ))
+
+
 
             if args.tensorboard_logging:
                 writer.add_scalar("%s-Epoch/ELBO"%split.upper(), torch.mean(tracker['ELBO']), epoch)
@@ -193,7 +202,7 @@ if __name__ == '__main__':
     parser.add_argument('--min_occ', type=int, default=1)
     parser.add_argument('--test', action='store_true')
 
-    parser.add_argument('-ep', '--epochs', type=int, default=10)
+    parser.add_argument('-ep', '--epochs', type=int, default=50)
     parser.add_argument('-bs', '--batch_size', type=int, default=32)
     parser.add_argument('-lr', '--learning_rate', type=float, default=0.001)
 
@@ -210,7 +219,7 @@ if __name__ == '__main__':
     parser.add_argument('-k', '--k', type=float, default=0.0025)
     parser.add_argument('-x0', '--x0', type=int, default=2500)
 
-    parser.add_argument('-v','--print_every', type=int, default=50)
+    parser.add_argument('-v','--print_every', type=int, default=200)
     parser.add_argument('-tb','--tensorboard_logging', action='store_true')
     parser.add_argument('-log','--logdir', type=str, default='logs')
     parser.add_argument('-bin','--save_model_path', type=str, default='bin')

@@ -137,10 +137,26 @@ def sample(env, policy, batchsz, process_num):
 
     return buff.get_batch()
 
-
 def update(env, policy, batchsz, epoch, process_num):
+    batch = sample(env, policy, batchsz, process_num)
+    # data in batch is : batch.state: ([1, s_dim], [1, s_dim]...)
+    # batch.action: ([1, a_dim], [1, a_dim]...)
+    # batch.reward/ batch.mask: ([1], [1]...)
+    s = torch.from_numpy(np.stack(batch.state)).to(device=DEVICE)
+    a = torch.from_numpy(np.stack(batch.action)).to(device=DEVICE)
+    r = torch.from_numpy(np.stack(batch.reward)).to(device=DEVICE)
+    mask = torch.Tensor(np.stack(batch.mask)).to(device=DEVICE)
+    batchsz_real = s.size(0)
+    policy.update(epoch, batchsz_real, s, a, r, mask)
+
+def gen_fake_data(env, policy, batchsz, epoch, process_num):
+    data_list = []
+
     # sample data asynchronously
     batch = sample(env, policy, batchsz, process_num)
+
+    s_temp = torch.tensor([])
+    a_temp = torch.tensor([])
 
     # data in batch is : batch.state: ([1, s_dim], [1, s_dim]...)
     # batch.action: ([1, a_dim], [1, a_dim]...)
@@ -151,16 +167,41 @@ def update(env, policy, batchsz, epoch, process_num):
     mask = torch.Tensor(np.stack(batch.mask)).to(device=DEVICE)
     batchsz_real = s.size(0)
 
+    for i in range(s.shape[1]):
+        s, a = to_device(data)
+        try:
+            s_temp = torch.cat((s_temp, s), 0)
+            a_temp = torch.cat((a_temp, a), 0)
+        except Exception as e:
+            s_temp = s
+            a_temp = a
+        # [ , , ]
+        s_train = s_temp.unsqueeze(0)
+        a_train = a_temp.unsqueeze(0)
+        # print(s_train.shape)
+        if len(s_train[0]) >= 2:
+            input_real = torch.cat((s_train, a_train), 2)
+            terminate = terminate_train["train"][i]
+            if terminate == False:
+                pass
+            else:
+                data_list.append(input_real)
+                # clear the button
+                s_temp = torch.tensor([])
+                a_temp = torch.tensor([])
+                input_real = torch.tensor([])
+
+
     policy.update(epoch, batchsz_real, s, a, r, mask)
 
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument("--load_path", type=str, default="", help="path of model to load")
-    parser.add_argument("--load_path_reward", default="", help="path of model to load from reward machine")
+    parser.add_argument("--load_path", type=str, default="//home//raliegh//图片//ConvLab-2//convlab2//policy//mle//multiwoz//best_mle", help="path of model to load")
+    parser.add_argument("--load_path_reward", default="//home//raliegh//图片//ConvLab-2//convlab2//policy//pg//save//best//best_reward_no_bellman", help="path of model to load from reward machine")
     parser.add_argument("--batchsz", type=int, default=512, help="batch size of trajactory sampling")
     parser.add_argument("--epoch", type=int, default=5, help="number of epochs to train")
-    parser.add_argument("--process_num", type=int, default=4, help="number of processes of trajactory sampling")
+    parser.add_argument("--process_num", type=int, default=2, help="number of processes of trajactory sampling")
     args = parser.parse_args()
 
     # simple rule DST
@@ -170,6 +211,7 @@ if __name__ == '__main__':
     policy_sys.load(args.load_path)
     # load the model of reward function
     policy_sys.load_reward_model(args.load_path_reward)
+    print("load policy success")
 
     # not use dst
     dst_usr = None

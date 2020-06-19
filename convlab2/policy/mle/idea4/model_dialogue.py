@@ -32,8 +32,11 @@ class dialogue_VAE(nn.Module):
             raise ValueError()
         self.input_size = embedding_size
         self.linear1 = nn.Linear(embedding_size,hidden_size)
-        self.encoder_rnn = rnn(embedding_size, hidden_size, num_layers=num_layers, bidirectional=self.bidirectional, batch_first=True)
-        self.decoder_rnn = rnn(embedding_size, hidden_size, num_layers=num_layers, bidirectional=self.bidirectional, batch_first=True)
+        self.linear2 = nn.Linear(hidden_size, hidden_size)
+        self.linear3 = nn.Linear(hidden_size, hidden_size)
+
+        self.encoder_rnn = rnn(hidden_size, hidden_size, num_layers=num_layers, bidirectional=self.bidirectional, batch_first=True)
+        self.decoder_rnn = rnn(hidden_size, hidden_size, num_layers=num_layers, bidirectional=self.bidirectional, batch_first=True)
 
         self.hidden_factor = (2 if bidirectional else 1) * num_layers
 
@@ -54,9 +57,12 @@ class dialogue_VAE(nn.Module):
         batch_size = len(input_sequence)
         # ENCODER
         # pack stuff and unpack stuff later.
-        original_input_tensor, pack_input_sequence, sorted_lengths, sorted_idx = self.concatenate_zero(input_sequence, max_len)
-        #pack_input_sequence = self.relu(self.linear1(pack_input_sequence.to("cuda")))
-        packed_input = rnn_utils.pack_padded_sequence(pack_input_sequence.to("cuda"), sorted_lengths.data.tolist(), batch_first=True)
+        original_input_tensor, padded_input_sequence, sorted_lengths, sorted_idx = self.concatenate_zero(input_sequence, max_len)
+        # padded_input_sequence = self.linear2(self.relu(self.linear1(padded_input_sequence.to("cuda"))))
+        padded_input_sequence_decoder = padded_input_sequence.clone()
+        padded_input_sequence = self.linear2(self.relu(self.linear1(padded_input_sequence.to("cuda"))))
+
+        packed_input = rnn_utils.pack_padded_sequence(padded_input_sequence.to("cuda"), sorted_lengths.data.tolist(), batch_first=True)
 
         _, hidden = self.encoder_rnn(packed_input)
 
@@ -74,10 +80,10 @@ class dialogue_VAE(nn.Module):
 
         z = to_var(torch.randn([batch_size, self.latent_size]))
         z = z * std + mean
-
         # DECODER latent to real hidden states
         hidden = self.latent2hidden(z)
 
+        # add VAE is better than NONE
         if self.bidirectional or self.num_layers > 1:
             # unflatten hidden state
             hidden = hidden.view(self.hidden_factor, batch_size, self.hidden_size)
@@ -88,12 +94,14 @@ class dialogue_VAE(nn.Module):
         # why dropout this one.
         # In fact, it is going to make this stuff work.
 
-        # decoder forward pass
-        # hidden comes from encoder, coming from laten variable.
-        # hidden [ , , ] three dimention
+        # decoder forward pass, hidden [ , , ] three dimention
 
-        input_dropout = self.dropout(original_input_tensor)#self.relu(self.linear1(original_input_tensor.to("cuda"))))
+        #input_dropout = self.dropout(original_input_tensor)
+        input_dropout = self.linear2(self.relu(self.linear1(padded_input_sequence_decoder.to("cuda"))))
+
+        # input_dropout = self.dropout(self.linear2(self.relu(self.linear1(original_input_tensor.clone().to("cuda")))))
         # pack stuff
+        input_dropout = self.dropout(input_dropout)
         packed_input = rnn_utils.pack_padded_sequence(input_dropout.to("cuda"), sorted_lengths.data.tolist(), batch_first=True)
 
         outputs, _ = self.decoder_rnn(packed_input, hidden)
@@ -106,7 +114,7 @@ class dialogue_VAE(nn.Module):
         padded_outputs = padded_outputs[reversed_idx]
         # b,s,_ = padded_outputs.size()
 
-        outputs_layer = self.sigmoid(self.output_layer(padded_outputs))
+        outputs_layer = self.output_layer(padded_outputs)
 
         # z is the distribution.
         # outputs = self.output_layer(padded_outputs)
@@ -129,3 +137,25 @@ class dialogue_VAE(nn.Module):
         input_sequence = output[sorted_idx]
         return original_input_tensor, input_sequence, sorted_lengths, sorted_idx
 
+    def compress(self,input):
+
+        input = self.linear2(self.relu(self.linear1(input.to("cuda"))))
+
+        _, hidden = self.encoder_rnn(input)
+
+        if self.bidirectional or self.num_layers > 1:
+            # flatten hidden state
+            hidden = hidden.view(1, self.hidden_size * self.hidden_factor)
+        else:
+            hidden = hidden.squeeze()
+
+        # REPARAMETERIZATION
+        # related to latent size, which is 16 (16/256)
+        mean = self.hidden2mean(hidden)
+        logv = self.hidden2logv(hidden)
+        std = torch.exp(0.5 * logv)
+
+        z = to_var(torch.randn([1, self.latent_size]))
+        distribution = z * std + mean
+
+        return mean, logv, distribution, std

@@ -11,12 +11,54 @@ from collections import OrderedDict, defaultdict
 import pickle
 from utils import to_var, idx2word, expierment_name
 from model_dialogue import dialogue_VAE
+from focalloss import FocalLoss
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+# args stuff
+parser = argparse.ArgumentParser()
+parser.add_argument('--data_dir', type=str, default='data')
+parser.add_argument('--create_data', action='store_true')
+parser.add_argument('--max_sequence_length', type=int, default=60)
+parser.add_argument('--min_occ', type=int, default=1)
+parser.add_argument('--test', action='store_true')
+
+parser.add_argument('-ep', '--epochs', type=int, default=20)
+parser.add_argument('-bs', '--batch_size', type=int, default=32)
+parser.add_argument('-lr', '--learning_rate', type=float, default=0.001)
+
+parser.add_argument('-eb', '--embedding_size', type=int, default=549)
+parser.add_argument('-rnn', '--rnn_type', type=str, default='gru')
+parser.add_argument('-hs', '--hidden_size', type=int, default=512)
+parser.add_argument('-nl', '--num_layers', type=int, default=1)
+parser.add_argument('-bi', '--bidirectional', action='store_true')
+parser.add_argument('-ls', '--latent_size', type=int, default=256)
+parser.add_argument('-wd', '--word_dropout', type=float, default=1)
+parser.add_argument('-ed', '--embedding_dropout', type=float, default=1)
+
+parser.add_argument('-af', '--anneal_function', type=str, default='logistic')
+parser.add_argument('-k', '--k', type=float, default=0.0025)
+parser.add_argument('-x0', '--x0', type=int, default=2500)
+
+parser.add_argument('-v', '--print_every', type=int, default=20)
+parser.add_argument('-tb', '--tensorboard_logging', action='store_true')
+parser.add_argument('-log', '--logdir', type=str, default='logs')
+parser.add_argument('-bin', '--save_model_path', type=str, default='bin')
+
+args = parser.parse_args()
+
+args.rnn_type = args.rnn_type.lower()
+args.anneal_function = args.anneal_function.lower()
+
+assert args.rnn_type in ['rnn', 'lstm', 'gru']
+assert args.anneal_function in ['logistic', 'linear']
+assert 0 <= args.word_dropout <= 1
+
 
 def main(args):
 
     ts = time.strftime('%Y-%b-%d-%H:%M:%S', time.gmtime())
 
-    splits = ['train', 'valid'] + (['test'] if args.test else [])
+    # splits = ['train', 'valid'] + (['test'] if args.test else [])
     splits = ['train'] + (['test'] if args.test else [])
 
     datasets = OrderedDict()
@@ -28,7 +70,7 @@ def main(args):
         #     max_sequence_length=args.max_sequence_length,
         #     min_occ=args.min_occ
         # )
-        with open(os.path.join("//home//raliegh//图片//ConvLab-2//convlab2//policy//mle//multiwoz//processed_data",
+        with open(os.path.join("//home//raliegh//图片//ConvLab-2//convlab2//policy//mle//multiwoz//processed_data//input_sa",
                                'input_data_{}.pkl'.format(split)), 'rb') as f:
             datasets[split] = pickle.load(f)
 
@@ -76,7 +118,11 @@ def main(args):
 
     # NLL = torch.nn.NLLLoss(size_average=False)
 
-    Reconstruction_loss = torch.nn.BCELoss(reduction="sum")
+    #Reconstruction_loss = torch.nn.BCELoss(reduction="sum")
+
+    pos_weights = torch.full([549],2).to(device)
+    Reconstruction_loss = torch.nn.BCEWithLogitsLoss(reduction="sum", pos_weight=pos_weights)
+    #Reconstruction_loss = FocalLoss(549)
 
     def loss_fn(logp, target, length, mean, logv, anneal_function, step, k, x0):
 
@@ -91,7 +137,8 @@ def main(args):
         # KL Divergence
         KL_loss = -0.5 * torch.sum(1 + logv - mean.pow(2) - logv.exp())
         KL_weight = kl_anneal_function(anneal_function, step, k, x0)
-
+        # KL_loss = 0.
+        # KL_weight = 0.
         return loss, KL_loss, KL_weight
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
@@ -130,6 +177,7 @@ def main(args):
                     # Forward pass
                     input, logp, mean, logv, z = model(temp, max_len)
 
+
                     if epoch == args.epochs - 1:
                         print(input, logp)
                         print(torch.sum((logp>0.5).float()))
@@ -141,7 +189,10 @@ def main(args):
 
                     loss = (NLL_loss + KL_weight * KL_loss)
 
+                    # evluation stuff
+
                     # backward + optimization
+
                     if split == 'train':
                         optimizer.zero_grad()
                         loss.backward()
@@ -174,9 +225,18 @@ def main(args):
                     temp = []
                     max_len = 0
                     batchID += 1
+
+            total_len = 0
+            for ele in temp:
+                total_len += ele.size(1)
+            a = torch.abs(logp > 0.5).float()
+            print("evaluation:  ",(torch.sum(input) / total_len).item(),
+                  (torch.sum(torch.abs((logp > 0).float() - input.to("cuda"))) / total_len).item())
+
             print("%s Epoch %02d/%i, Mean ELBO %9.4f"%(split.upper(), epoch, args.epochs, torch.mean(tracker['ELBO'])/args.batch_size ))
+
             if split == "test":
-                print(torch.mean(tracker['test_diff']) / args.batch_size)
+                print("test loss:  ",(torch.mean(tracker['test_diff']) / args.batch_size).item())
 
             if args.tensorboard_logging:
                 writer.add_scalar("%s-Epoch/ELBO"%split.upper(), torch.mean(tracker['ELBO']), epoch)
@@ -195,46 +255,12 @@ def main(args):
                 torch.save(model.state_dict(), checkpoint_path)
                 print("Model saved at %s"%checkpoint_path)
 
+    save_path = "/home/raliegh/图片/ConvLab-2/convlab2/policy/mle/idea4/"
+    torch.save(model.state_dict(), save_path + "VAE.pol.mdl")
+
+
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('--data_dir', type=str, default='data')
-    parser.add_argument('--create_data', action='store_true')
-    parser.add_argument('--max_sequence_length', type=int, default=60)
-    parser.add_argument('--min_occ', type=int, default=1)
-    parser.add_argument('--test', action='store_true')
-
-    parser.add_argument('-ep', '--epochs', type=int, default=20)
-    parser.add_argument('-bs', '--batch_size', type=int, default=32)
-    parser.add_argument('-lr', '--learning_rate', type=float, default=0.001)
-
-    parser.add_argument('-eb', '--embedding_size', type=int, default=549)
-    parser.add_argument('-rnn', '--rnn_type', type=str, default='gru')
-    parser.add_argument('-hs', '--hidden_size', type=int, default=512)
-    parser.add_argument('-nl', '--num_layers', type=int, default=1)
-    parser.add_argument('-bi', '--bidirectional', action='store_true')
-    parser.add_argument('-ls', '--latent_size', type=int, default=64)
-    parser.add_argument('-wd', '--word_dropout', type=float, default=0)
-    parser.add_argument('-ed', '--embedding_dropout', type=float, default=0.5)
-
-    parser.add_argument('-af', '--anneal_function', type=str, default='logistic')
-    parser.add_argument('-k', '--k', type=float, default=0.0025)
-    parser.add_argument('-x0', '--x0', type=int, default=2500)
-
-    parser.add_argument('-v','--print_every', type=int, default=20)
-    parser.add_argument('-tb','--tensorboard_logging', action='store_true')
-    parser.add_argument('-log','--logdir', type=str, default='logs')
-    parser.add_argument('-bin','--save_model_path', type=str, default='bin')
-
-    args = parser.parse_args()
-
-    args.rnn_type = args.rnn_type.lower()
-    args.anneal_function = args.anneal_function.lower()
-
-    assert args.rnn_type in ['rnn', 'lstm', 'gru']
-    assert args.anneal_function in ['logistic', 'linear']
-    assert 0 <= args.word_dropout <= 1
 
     main(args)

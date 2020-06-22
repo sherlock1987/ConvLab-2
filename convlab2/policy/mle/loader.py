@@ -39,6 +39,8 @@ class ActMLEPolicyDataLoader():
                 self.terminate[part].append(state['terminated'])
 
                 self.state_whole[part].append(state)
+                general_state = state
+                print()
         os.makedirs(processed_dir)
         for part in ['train', 'val', 'test']:
             with open(os.path.join(processed_dir, '{}.pkl'.format(part)), 'wb') as f:

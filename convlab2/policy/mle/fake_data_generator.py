@@ -64,7 +64,6 @@ class PG_generator(Policy):
             self.policy_optim = optim.RMSprop(self.policy.parameters(), lr=cfg['lr'])
         # load_best model from the web.
         self.load("/home/raliegh/图片/ConvLab-2/convlab2/policy/pg/save/best/best_pg_from_web.pol.mdl")
-        # define the predictor params
 
     def predict(self, state):
         """

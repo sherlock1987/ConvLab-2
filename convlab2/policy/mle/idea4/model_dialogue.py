@@ -57,7 +57,7 @@ class dialogue_VAE(nn.Module):
         batch_size = len(input_sequence)
         # ENCODER
         # pack stuff and unpack stuff later.
-        original_input_tensor, padded_input_sequence, sorted_lengths, sorted_idx = self.concatenate_zero(input_sequence, max_len)
+        original_input_tensor, padded_input_sequence, sorted_lengths, sorted_idx = self.pad(input_sequence, max_len)
         # padded_input_sequence = self.linear2(self.relu(self.linear1(padded_input_sequence.to("cuda"))))
         padded_input_sequence_decoder = padded_input_sequence.clone()
         padded_input_sequence = self.linear2(self.relu(self.linear1(padded_input_sequence.to("cuda"))))
@@ -120,7 +120,7 @@ class dialogue_VAE(nn.Module):
         # outputs = self.output_layer(padded_outputs)
         return original_input_tensor, outputs_layer, mean, logv, z
 
-    def concatenate_zero(self, input, max_len):
+    def pad(self, input, max_len):
         output = torch.zeros(size = (len(input), max_len, self.input_size))
 
         len_list = []
@@ -137,7 +137,7 @@ class dialogue_VAE(nn.Module):
         input_sequence = output[sorted_idx]
         return original_input_tensor, input_sequence, sorted_lengths, sorted_idx
 
-    def compress(self,input):
+    def compress(self, input):
 
         input = self.linear2(self.relu(self.linear1(input.to("cuda"))))
 
@@ -159,3 +159,29 @@ class dialogue_VAE(nn.Module):
         distribution = z * std + mean
 
         return mean, logv, distribution, std
+
+    def compress_eval(self, input):
+        """
+        :param input: network tends to converge, but I am still confused which part should I use. Haha.
+        :return:
+        """
+        input = self.linear2(self.relu(self.linear1(input.to("cuda"))))
+
+        _, hidden = self.encoder_rnn(input)
+
+        # if self.bidirectional or self.num_layers > 1:
+        #     # flatten hidden state
+        #     hidden = hidden.view(1, self.hidden_size * self.hidden_factor)
+        # else:
+        #     hidden = hidden.squeeze()
+        #
+        # # REPARAMETERIZATION
+        # # related to latent size, which is 16 (16/256)
+        # mean = self.hidden2mean(hidden)
+        # logv = self.hidden2logv(hidden)
+        # std = torch.exp(0.5 * logv)
+        #
+        # z = to_var(torch.randn([1, self.latent_size]))
+        # distribution = z * std + mean
+
+        return _, hidden

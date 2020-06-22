@@ -27,10 +27,10 @@ parser.add_argument('-bs', '--batch_size', type=int, default=32)
 parser.add_argument('-lr', '--learning_rate', type=float, default=0.001)
 
 parser.add_argument('-eb', '--embedding_size', type=int, default=549)
-parser.add_argument('-rnn', '--rnn_type', type=str, default='gru')
+parser.add_argument('-rnn','--rnn_type', type=str, default='gru')
 parser.add_argument('-hs', '--hidden_size', type=int, default=512)
 parser.add_argument('-nl', '--num_layers', type=int, default=1)
-parser.add_argument('-bi', '--bidirectional', action='store_true')
+parser.add_argument('-bi', '--bidirectional', type = bool, default=True)
 parser.add_argument('-ls', '--latent_size', type=int, default=256)
 parser.add_argument('-wd', '--word_dropout', type=float, default=1)
 parser.add_argument('-ed', '--embedding_dropout', type=float, default=1)
@@ -261,6 +261,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-
-
     main(args)

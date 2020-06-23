@@ -3,6 +3,31 @@ import torch.nn as nn
 import torch.nn.utils.rnn as rnn_utils
 from .utils import to_var
 import torch.nn.functional as F
+import torch.tensor as tensor
+
+class Compare():
+    def __init__(self):
+        pass
+
+    def projection(self, input, oracle):
+        # one vecter on the oracle vector
+        cos = self.cos_sam(input, oracle)
+        length_oracle = torch.sqrt(torch.sum(oracle * oracle))
+        length_vec = torch.sqrt(torch.sum(input * input))
+        output = length_vec * cos/length_oracle
+        return output
+
+    def cos_sam(self, input, oracle):
+        # print(input.shape, oracle.shape)
+        upper = torch.sum(input * oracle)
+        lower_1 = torch.sqrt(torch.sum(input * input))
+        lower_2 = torch.sqrt(torch.sum(oracle* oracle))
+        return (upper/(lower_1*lower_2))
+
+    def distance(self, input, oracle):
+        diff = input - oracle
+        output = torch.sqrt(torch.sum(diff * diff))
+        return output
 
 class dialogue_VAE(nn.Module):
     def __init__(self, embedding_size, rnn_type, hidden_size, word_dropout, embedding_dropout, latent_size,
@@ -10,7 +35,7 @@ class dialogue_VAE(nn.Module):
 
         super().__init__()
         self.tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
-
+        self.compare = Compare()
         self.max_sequence_length = max_sequence_length
         self.latent_size = latent_size
 
@@ -22,7 +47,6 @@ class dialogue_VAE(nn.Module):
         self.word_dropout_rate = word_dropout
         # self.embedding_dropout = nn.Dropout(p=embedding_dropout)
         self.dropout = nn.Dropout(p=0.5)
-
         if rnn_type == 'rnn':
             rnn = nn.RNN
         elif rnn_type == 'gru':
@@ -50,6 +74,7 @@ class dialogue_VAE(nn.Module):
         self.discriminator_layer1 = nn.Linear(hidden_size * self.hidden_factor, 128)
         self.discriminator_layer2 = nn.Linear(128,32)
         self.discriminator_layer3 = nn.Linear(32,2)
+
 
     def forward(self, input_sequence, max_len):
         """
@@ -163,15 +188,69 @@ class dialogue_VAE(nn.Module):
 
         return mean, logv, distribution, std
 
+    def get_reward(self, r, s, a, mask, local=True, globa = True):
+        """
+        we save a trajectory in continuous space and it reaches the ending of current trajectory when mask=0.
+        :param r: reward, Tensor, [b]
+        :param mask: indicates ending for 0 otherwise 1, Tensor, [b]
+        :param s: state, Tensor, [b,340]
+        :param a: action, Tensor, [b,209]
+        """
+        reward_predict = []
+        batchsz = r.shape[0]
+        s_temp = torch.tensor([])
+        a_temp = torch.tensor([])
+        # stor the data elementise
+        reward_collc = []
+        for i in range(batchsz):
+            # current　states and actions
+            s_1 = s[i].unsqueeze(0)
+            a_1 = a[i].unsqueeze(0)
+            try:
+                s_temp = torch.cat((s_temp, s_1), 0)
+                a_temp = torch.cat((a_temp, a_1), 0)
+            except Exception:
+                s_temp = s_1
+                a_temp = a_1
+
+            s_train = s_temp.unsqueeze(0).float()
+            a_train = a_temp.unsqueeze(0).float()
+            input = torch.cat((s_train, a_train), 2)
+            if int(mask[i]) == 0:
+                # for the last one, the reward should follow the system. 5, 40, -1, that's it.
+                last_reward = r[i].item()
+                reward_collc.append(last_reward)
+                global_score = self.get_score_global(input, global_type= "mask")
+                global_score.append(0)
+                # add global score
+                for i in range(len(reward_collc)):
+                    reward_collc[i] += global_score[i]
+                s_temp = torch.tensor([])
+                a_temp = torch.tensor([])
+                reward_predict += reward_collc
+                reward_collc = []
+            #   compute the last one, terminate clear the button, that is okay for us.
+            else:
+                with torch.no_grad():
+                    # self.g
+                    fake_score = self.get_score(input)
+                    reward_collc.append(fake_score.item())
+
+        reward_predict = torch.tensor(reward_predict)
+
+        return reward_predict
 
     def get_score(self, input_sequence):
         """
-        :param input_sequence:
-        :param length:
-        :return:
+        :param input_sequence: list
+        :param gloabl: bool, true meaning to this stuff.
+        :param gloabl type: Hindsight, mask
+        :return: reward computation
         """
         # order
-        batch_size = len(input_sequence)
+        seq_len = len(input_sequence)
+        batch_size = input_sequence[0][0]
+        input_last = input_sequence[-1]
         # ENCODER
         # pack stuff and unpack stuff later.
         input_sequence = self.linear2(self.relu(self.linear1(input_sequence.to("cuda"))))
@@ -199,3 +278,40 @@ class dialogue_VAE(nn.Module):
         true_prob = F.softmax(disc_res.squeeze())[1] - 0.5
 
         return true_prob
+
+    def get_score_global(self, input, global_type = "cos"):
+        """
+        :param input:[ , , ]
+        :param global_type: "cos", "mask"
+        :return: list
+        """
+        res = []
+        if global_type == "cos":
+            input_sequence = self.linear2(self.relu(self.linear1(input.to("cuda"))))
+            whole, hidden = self.encoder_rnn(input_sequence)
+            length = len(whole[0])
+            for i in range(length-1):
+                curr_h = whole[0][i].unsqueeze(0)
+                reward_cur = self.compare.cos_sam(curr_h, hidden).item()
+                res.append(reward_cur)
+            prev = res.copy()
+            for i in reversed(range(1,length-1)):
+                res[i] = res[i] - res[i-1]
+
+        elif global_type == "mask":
+            length = len(input[0])
+            input_sequence = self.linear2(self.relu(self.linear1(input.to("cuda"))))
+            whole, hidden_oracle = self.encoder_rnn(input_sequence)
+
+            zero = torch.zeros(549)
+
+            for i in range(length - 1):
+                input_linear = input.clone()
+                input_linear[0][i][:] = zero
+                input_sequence = self.linear2(self.relu(self.linear1(input_linear.to("cuda"))))
+                whole, hidden = self.encoder_rnn(input_sequence)
+                reward_cur = (1 - self.compare.cos_sam(hidden, hidden_oracle).item())*10 - 1
+                res.append(reward_cur)
+        return res
+
+

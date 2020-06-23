@@ -191,6 +191,9 @@ if __name__ == '__main__':
 How to add idea_x?
 args:
 --load_path /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle --load_path_reward /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/save/idea1_model/idea_3_descriminator.mdl
+idea5 model
+--load_path /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle --load_path_reward /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/idea5/idea5.pol.mdl
+
 then add init stuff in ppo.init
 then add reward function in ppo, implement it in ppo.upgrade. # A_sa, v_target = self.est_adv(r, v, mask)
 then add function of load model in ppo, implement it in ppo/train.py, modify args of load_reward_model

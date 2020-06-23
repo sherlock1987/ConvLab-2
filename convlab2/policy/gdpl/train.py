@@ -154,6 +154,7 @@ def update(env, policy, batchsz, epoch, process_num, rewarder):
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("--load_path", type=str, default="", help="path of model to load")
+    parser.add_argument("--load_path_estimator", type=str, default="", help="path of model to load")
     parser.add_argument("--batchsz", type=int, default=512, help="batch size of trajactory sampling")
     parser.add_argument("--epoch", type=int, default=30, help="number of epochs to train")
     parser.add_argument("--process_num", type=int, default=2, help="number of processes of trajactory sampling")
@@ -164,7 +165,7 @@ if __name__ == '__main__':
     policy_sys = GDPL(True)
     policy_sys.load(args.load_path)
     rewarder = RewardEstimator(policy_sys.vector, False)
-
+    rewarder.load_irl(args.load_path_estimator)
 
     # not use dst
     dst_usr = None
@@ -181,5 +182,5 @@ if __name__ == '__main__':
     for i in range(args.epoch):
         update(env, policy_sys, args.batchsz, i, args.process_num, rewarder)
 """
---load_path /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle
+--load_path /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle --load_path_estimator /home/raliegh/图片/ConvLab-2/convlab2/policy/gdpl/gdpl_policy_multiwoz/best_gdpl
 """

@@ -189,40 +189,7 @@ class PPO(Policy):
         :param s: state, Tensor, [b,340]
         :param a: action, Tensor, [b,209]
         """
-        reward_predict = []
-        batchsz = r.shape[0]
-        s_temp = torch.tensor([])
-        a_temp = torch.tensor([])
-        for i in range(batchsz):
-            # current　states and actions
-            s_1 = s[i].unsqueeze(0)
-            a_1 = a[i].unsqueeze(0)
-            try:
-                s_temp = torch.cat((s_temp, s_1), 0)
-                a_temp = torch.cat((a_temp, a_1), 0)
-            except Exception:
-                s_temp = s_1
-                a_temp = a_1
-
-            s_train = s_temp.unsqueeze(0).float()
-            a_train = a_temp.unsqueeze(0).float()
-            input = torch.cat((s_train, a_train), 2)
-            # input_bf = s_train[-1].unsqueeze(0)
-            # target = a_train[-1].unsqueeze(0)
-            # 长度大于2 的话呢.
-
-            if int(mask[i]) == 0:
-                # for the last one, the reward should follow the system.
-                cur_reward = r[i]
-                s_temp = torch.tensor([])
-                a_temp = torch.tensor([])
-            #   compute the last one, terminate clear the button, that is okay for us.
-            else:
-                with torch.no_grad():
-                    self.reward_predictor_idea5.eval()
-                    cur_reward = self.reward_predictor_idea5.get_score(input.to(DEVICE))
-            reward_predict.append(cur_reward.item())
-
+        reward_predict = self.reward_predictor_idea5.get_reward(r, s, a, mask)
         reward_predict = tensor(reward_predict)
         return reward_predict
 

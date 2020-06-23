@@ -9,8 +9,8 @@ from torch.utils.data import DataLoader
 from collections import OrderedDict, defaultdict
 import pickle
 from tensorboardX import SummaryWriter
-from model_dialogue import dialogue_VAE
-from utils import expierment_name
+from .model_dialogue import dialogue_VAE
+from .utils import expierment_name
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -30,7 +30,7 @@ parser.add_argument('-eb', '--embedding_size', type=int, default=549)
 parser.add_argument('-rnn', '--rnn_type', type=str, default='gru')
 parser.add_argument('-hs', '--hidden_size', type=int, default=512)
 parser.add_argument('-nl', '--num_layers', type=int, default=1)
-parser.add_argument('-bi', '--bidirectional', action='store_true')
+parser.add_argument('-bi', '--bidirectional', type = bool, default= True)
 parser.add_argument('-ls', '--latent_size', type=int, default=256)
 parser.add_argument('-wd', '--word_dropout', type=float, default=1)
 parser.add_argument('-ed', '--embedding_dropout', type=float, default=1)
@@ -44,14 +44,14 @@ parser.add_argument('-tb', '--tensorboard_logging', action='store_true')
 parser.add_argument('-log', '--logdir', type=str, default='logs')
 parser.add_argument('-bin', '--save_model_path', type=str, default='bin')
 
-args = parser.parse_args()
+args_idea5 = parser.parse_args()
 
-args.rnn_type = args.rnn_type.lower()
-args.anneal_function = args.anneal_function.lower()
+args_idea5.rnn_type = args_idea5.rnn_type.lower()
+args_idea5.anneal_function = args_idea5.anneal_function.lower()
 
-assert args.rnn_type in ['rnn', 'lstm', 'gru']
-assert args.anneal_function in ['logistic', 'linear']
-assert 0 <= args.word_dropout <= 1
+assert args_idea5.rnn_type in ['rnn', 'lstm', 'gru']
+assert args_idea5.anneal_function in ['logistic', 'linear']
+assert 0 <= args_idea5.word_dropout <= 1
 
 
 def main(args):
@@ -72,9 +72,9 @@ def main(args):
             datasets_fake[split] = pickle.load(f)
 
     model = dialogue_VAE(
-        max_sequence_length=args.max_sequence_length,
-        embedding_size=args.embedding_size,
-        rnn_type=args.rnn_type,
+        max_sequence_length= 60,
+        embedding_size= 549,
+        rnn_type= "gru",
         hidden_size=args.hidden_size,
         word_dropout=args.word_dropout,
         embedding_dropout=args.embedding_dropout,

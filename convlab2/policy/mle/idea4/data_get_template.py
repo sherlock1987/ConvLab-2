@@ -242,6 +242,6 @@ def load_data(part_which):
 # how to use?
 # get_data(part_which="test")
 # data_list, state_whole, terminate = load_data(part_which="train")
-get_elementwise_fake("train")
-get_elementwise_fake("val")
-get_elementwise_fake("test")
+# get_elementwise_fake("train")
+# get_elementwise_fake("val")
+# get_elementwise_fake("test")

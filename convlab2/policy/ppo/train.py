@@ -13,7 +13,8 @@ from convlab2.dialog_agent.env import Environment
 from convlab2.nlu.svm.multiwoz import SVMNLU
 from convlab2.dst.rule.multiwoz import RuleDST
 from convlab2.policy.rule.multiwoz import RulePolicy
-from convlab2.policy.ppo import PPO
+# from convlab2.policy.ppo import PPO
+from convlab2.policy.ppo.idea5 import PPO
 from convlab2.policy.rlmodule import Memory, Transition
 from convlab2.nlg.template.multiwoz import TemplateNLG
 from convlab2.evaluator.multiwoz_eval import MultiWozEvaluator
@@ -167,8 +168,8 @@ if __name__ == '__main__':
     dst_sys = RuleDST()
 
     policy_sys = PPO(True)
-    policy_sys.load(args.load_path)
-    # policy_sys.load_reward_model(args.load_path_reward)
+    policy_sys.load('/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/multiwoz/best_mle')
+    policy_sys.load_reward_model('/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/idea5/bin/idea5.pol.mdl')
     # policy_sys.load_reward_model_idea3(args.load_path_reward)
 
     # not use dst

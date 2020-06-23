@@ -122,7 +122,7 @@ class PPO(Policy):
 
         return A_sa, v_target
 
-    def reward_estimate(self, r, v, s, a, mask):
+    def reward_estimate(self, r, s, a, mask):
         """
         we save a trajectory in continuous space and it reaches the ending of current trajectory when mask=0.
         :param r: reward, Tensor, [b]
@@ -167,13 +167,11 @@ class PPO(Policy):
                         cur_reward = self.reward_predictor.compute_reward(input_pre, input_bf, target)
                 reward_predict.append(cur_reward.item())
             else:
-                #             when the lengh is 1, the start reward is 1
+                # when the lengh is 1, the start reward is 1
                 reward_predict.append(1)
         # add the bellman equation
         reward_predict = tensor(reward_predict)
-        reward_bell_man = self.reward_predictor.bellman_equation(reward_predict, mask, self.gamma)
-        A_sa, v_target = self.est_adv(reward_predict, v, mask)
-        return A_sa, reward_bell_man
+        return reward_predict
 
     def reward_estimate_idea3(self,r, v, s, a, mask):
         """
@@ -231,10 +229,8 @@ class PPO(Policy):
 
         # estimate advantage and v_target according to GAE and Bellman Equation
         # leave the V alone, just forget about it.
-
+        r = self.reward_estimate(r, s, a, mask)
         A_sa, v_target = self.est_adv(r, v, mask)
-        # A_sa, v_target = self.reward_estimate(r, v, s, a, mask)
-        # A_sa, v_target = self.reward_estimate_idea3(r, v, s, a, mask)
 
         for i in range(self.update_round):
 

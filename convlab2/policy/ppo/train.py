@@ -14,7 +14,7 @@ from convlab2.nlu.svm.multiwoz import SVMNLU
 from convlab2.dst.rule.multiwoz import RuleDST
 from convlab2.policy.rule.multiwoz import RulePolicy
 # from convlab2.policy.ppo import PPO
-from convlab2.policy.ppo.idea5 import PPO
+from convlab2.policy.ppo.idea5.ppo import PPO
 from convlab2.policy.rlmodule import Memory, Transition
 from convlab2.nlg.template.multiwoz import TemplateNLG
 from convlab2.evaluator.multiwoz_eval import MultiWozEvaluator

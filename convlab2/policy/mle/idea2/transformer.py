@@ -19,7 +19,10 @@ class TransformerModel(nn.Module):
         self.decoder_rnn = nn.GRU(ninp, nhid, batch_first=True)
         self.domain_classify_layer1 = nn.Linear(ninp, 64)
         self.domain_classify_layer2 = nn.Linear(64,16)
-        self.domain_classify_layer3 = nn.Linear(16,7)
+        self.domain_classify_layer3 = nn.Linear(16,8)
+
+        self.linear1 = nn.Linear(ntoken, nip)
+        self.linear2 = nn.Linear(nip, nip)
 
         self.output_linear = nn.Linear(nhid, ntoken)
 

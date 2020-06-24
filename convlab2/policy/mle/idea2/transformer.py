@@ -15,7 +15,7 @@ class TransformerModel(nn.Module):
         self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
         self.input_linear = nn.Linear(ntoken, ninp)
         self.ninp = ninp
-
+        self.input_size = ntoken
         self.decoder_rnn = nn.GRU(ninp, nhid, batch_first=True)
         self.domain_classify_layer1 = nn.Linear(ninp, 64)
         self.domain_classify_layer2 = nn.Linear(64,16)
@@ -39,7 +39,7 @@ class TransformerModel(nn.Module):
         self.decoder.bias.data.zero_()
         self.decoder.weight.data.uniform_(-initrange, initrange)
 
-    def forward(self, src):
+    def forward(self, src, max_len):
         if self.src_mask is None or self.src_mask.size(0) != len(src):
             device = src.device
             mask = self._generate_square_subsequent_mask(len(src)).to(device)
@@ -49,6 +49,9 @@ class TransformerModel(nn.Module):
         # ENCODER
         original_src, padded_src, sorted_lengths, sorted_idx = self.concatenate_zero(src, max_len)
         padded_src_for_decoder = padded_src.clone()
+        # append <SOS> in front of input
+        original_src = torch.cat((torch.zeros(batch_size,1,self.input_size), original_src),dim=1)
+        padded_src_for_decoder = torch.cat((torch.zeros(batch_size,1,self.input_size), padded_src_for_decoder),dim=1)
 
         src = original_src.to("cuda")
         src = self.input_linear(src) * math.sqrt(self.ninp)
@@ -73,7 +76,7 @@ class TransformerModel(nn.Module):
         padded_outputs = padded_outputs[reversed_idx]
         output = self.output_linear(padded_outputs)
 
-        return output
+        return output, original_src, disc_res
 
     def concatenate_zero(self, input, max_len):
         output = torch.zeros(size = (len(input), max_len, self.input_size))

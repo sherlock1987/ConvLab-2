@@ -9,8 +9,8 @@ from torch.utils.data import DataLoader
 from collections import OrderedDict, defaultdict
 import pickle
 from tensorboardX import SummaryWriter
-from .model_dialogue import dialogue_VAE
-from .utils import expierment_name
+from model_dialogue import dialogue_VAE
+from utils import expierment_name
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -64,12 +64,12 @@ def main(args):
     datasets_real = OrderedDict()
     datasets_fake = OrderedDict()
     for split in splits:
-        with open(os.path.join("/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/multiwoz/processed_data/",
+        with open(os.path.join("/home/raliegh/图片/ConvLab-2/convlab2/policy/mle/processed_data",
                                'sa_element_{}_real.pkl'.format(split)), 'rb') as f:
             datasets_real[split] = pickle.load(f)
-        with open(os.path.join("/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/multiwoz/processed_data/",
-                               'sa_element_{}_fake.pkl'.format(split)), 'rb') as f:
-            datasets_fake[split] = pickle.load(f)
+        # with open(os.path.join("/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/multiwoz/processed_data/",
+        #                        'sa_element_{}_fake.pkl'.format(split)), 'rb') as f:
+        #     datasets_fake[split] = pickle.load(f)
 
     model = dialogue_VAE(
         max_sequence_length= 60,
@@ -113,7 +113,7 @@ def main(args):
 
     pos_weights = torch.full([549],2, dtype = torch.float).to(device)
     reconstruction_loss = torch.nn.BCEWithLogitsLoss(reduction="sum", pos_weight=pos_weights)
-    classification_loss = torch.nn.CrossEntropyLoss(reduction="sum")
+    classification_loss = torch.nn.BCEWithLogitsLoss(reduction="sum")
 
     def loss_fn(logp, target, disc_res, disc_tar):
         loss1 = reconstruction_loss(logp, target)
@@ -147,7 +147,7 @@ def main(args):
         for split in splits:
 
             data_loader_real = datasets_real[split][split]
-            data_loader_fake = datasets_fake[split][split]
+            # data_loader_fake = datasets_fake[split][split]
             tracker = defaultdict(tensor)
 
             # Enable/Disable Dropout
@@ -161,12 +161,41 @@ def main(args):
             max_len = 0
             for iteration, batch in enumerate(data_loader_real):
                 temp.append(batch)
-                temp.append(data_loader_fake[iteration])
-                discriminator_target.append(1)
-                discriminator_target.append(0)
+                a_sys = batch[0][-1][340:549].cpu()
+                domain = [0] * 9
+                for i in range(a_sys.shape[0]):
+                    if a_sys[i].item() == 1.:
+                        if 0 <= i <= 39:
+                            domain[0] = 1
+                        elif 40 <= i <= 58:
+                            domain[8] = 1
+                        elif 59 <= i <= 63:
+                            domain[1] = 1
+                        elif 64 <= i <= 110:
+                            domain[2] = 1
+                        elif 111 <= i <= 114:
+                            domain[3] = 1
+                        elif 115 <= i <= 109:
+                            domain[4] = 1
+                        elif 110 <= i <= 160:
+                            domain[5] = 1
+                        elif 170 <= i <= 204:
+                            domain[6] = 1
+                        elif 205 <= i <= 208:
+                            domain[7] = 1
+                # 【 ， ， ， ， ，， ， ，， general, book】
+                # for i, flag in enumerate(a_sys):
+                #     if flag == tensor(1.).cpu():
+
+
+                # temp.append(data_loader_fake[iteration])
+                # discriminator_target.append(1)
+                # discriminator_target.append(0)
+
+                discriminator_target.append(domain)
 
                 max_len = max(max_len, batch.size(1))
-                if (iteration+1) % (args.batch_size//2) == 0:
+                if (iteration+1) % (args.batch_size) == 0:
                     batch_size = len(temp)
 
                     # Forward path for VAE
@@ -174,7 +203,7 @@ def main(args):
                     # original_input, logp, mean, logv, z = model(temp, max_len)
 
                     # loss calculation
-                    loss1, loss2 = loss_fn(logp, original_input.to("cuda"), disc_res, torch.tensor(discriminator_target).to("cuda"))
+                    loss1, loss2 = loss_fn(logp, original_input.to("cuda"), disc_res, torch.tensor(discriminator_target).float().to("cuda"))
                     loss = loss1 + loss2 * 2
                     if (batch_id+1) % 1000 == 0:
                         print("loss1 & 2:",loss1.item()/batch_size, loss2.item()/batch_size)
@@ -247,11 +276,11 @@ def main(args):
                 print("Model saved at %s"%checkpoint_path)
 
     save_path = "./bin/"
-    torch.save(model.state_dict(), save_path + "idea5.pol.mdl")
+    torch.save(model.state_dict(), save_path + "idea6.pol.mdl")
 
 
 
 if __name__ == '__main__':
 
 
-    main(args)
+    main(args_idea5)

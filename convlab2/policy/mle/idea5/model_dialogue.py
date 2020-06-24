@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.utils.rnn as rnn_utils
-from .utils import to_var
+from utils import to_var
 import torch.nn.functional as F
 import torch.tensor as tensor
 
@@ -73,7 +73,12 @@ class dialogue_VAE(nn.Module):
         self.relu = nn.ReLU()
         self.discriminator_layer1 = nn.Linear(hidden_size * self.hidden_factor, 128)
         self.discriminator_layer2 = nn.Linear(128,32)
-        self.discriminator_layer3 = nn.Linear(32,2)
+        self.discriminator_layer3 = nn.Linear(32,9)
+
+    def mask_last_action(self, input):
+        for s in input:
+            s[0, -1, 340:549] = 0.
+        return input
 
 
     def forward(self, input_sequence, max_len):
@@ -84,6 +89,7 @@ class dialogue_VAE(nn.Module):
         """
         # order
         batch_size = len(input_sequence)
+        input_sequence = self.mask_last_action(input_sequence)
         # ENCODER
         # pack stuff and unpack stuff later.
         original_input_tensor, padded_input_sequence, sorted_lengths, sorted_idx = self.concatenate_zero(input_sequence, max_len)
@@ -126,6 +132,8 @@ class dialogue_VAE(nn.Module):
         # In fact, it is going to make this stuff work.
 
         # decoder forward pass, hidden [ , , ] three dimention
+        # padded_input_sequence_decoder = torch.cat((torch.zeros(batch_size,1,self.input_size),padded_input_sequence_decoder),dim=1)
+        # original_input_tensor = torch.cat((original_input_tensor,torch.zeros(batch_size,1,self.input_size)),dim=1)
         padded_input_sequence_decoder = self.linear2(self.relu(self.linear1(padded_input_sequence_decoder.to("cuda"))))
         input_dropout = self.dropout(padded_input_sequence_decoder)
 
@@ -233,12 +241,96 @@ class dialogue_VAE(nn.Module):
             else:
                 with torch.no_grad():
                     # self.g
-                    fake_score = self.get_score(input)
+                    fake_score = self.get_score_idea6(input)
                     reward_collc.append(fake_score.item())
 
         reward_predict = torch.tensor(reward_predict)
 
         return reward_predict
+
+    def get_reward_global(self, r, s, a, mask, globa_type = "mask"):
+        """
+        we save a trajectory in continuous space and it reaches the ending of current trajectory when mask=0.
+        :param r: reward, Tensor, [b]
+        :param mask: indicates ending for 0 otherwise 1, Tensor, [b]
+        :param s: state, Tensor, [b,340]
+        :param a: action, Tensor, [b,209]
+        """
+        reward_predict = []
+        batchsz = r.shape[0]
+        s_temp = torch.tensor([])
+        a_temp = torch.tensor([])
+        # stor the data elementise
+        reward_collc = []
+        for i in range(batchsz):
+            # current　states and actions
+            s_1 = s[i].unsqueeze(0)
+            a_1 = a[i].unsqueeze(0)
+            try:
+                s_temp = torch.cat((s_temp, s_1), 0)
+                a_temp = torch.cat((a_temp, a_1), 0)
+            except Exception:
+                s_temp = s_1
+                a_temp = a_1
+
+            s_train = s_temp.unsqueeze(0).float()
+            a_train = a_temp.unsqueeze(0).float()
+            input = torch.cat((s_train, a_train), 2)
+            if int(mask[i]) == 0:
+                # for the last one, the reward should follow the system. 5, 40, -1, that's it.
+                last_reward = r[i].item()
+                global_score = self.get_score_global(input, global_type= globa_type)
+                global_score.append(last_reward)
+                # add global score
+                s_temp = torch.tensor([])
+                a_temp = torch.tensor([])
+                reward_predict += global_score
+            #   compute the last one, terminate clear the button, that is okay for us.
+            else:
+                pass
+
+        reward_predict = torch.tensor(reward_predict)
+
+        return reward_predict
+
+    def get_score_idea6(self, input_sequence):
+        """
+        :param input_sequence: list
+        :param gloabl: bool, true meaning to this stuff.
+        :param gloabl type: Hindsight, mask
+        :return: reward computation
+        """
+        # order
+        seq_len = len(input_sequence)
+        batch_size = input_sequence[0][0]
+        input_last = input_sequence[-1]
+        # ENCODER
+        # pack stuff and unpack stuff later.
+        input_sequence = self.linear2(self.relu(self.linear1(input_sequence.to("cuda"))))
+        _, hidden = self.encoder_rnn(input_sequence)
+
+        if self.bidirectional or self.num_layers > 1:
+            # flatten hidden state
+            hidden = hidden.view(batch_size, self.hidden_size * self.hidden_factor)
+        else:
+            hidden = hidden.squeeze()
+
+        # # REPARAMETERIZATION
+        # # related to latent size, which is 16 (16/256)
+        # mean = self.hidden2mean(hidden)
+        # logv = self.hidden2logv(hidden)
+        # std = torch.exp(0.5 * logv)
+        #
+        # z = to_var(torch.randn([batch_size, self.latent_size]))
+        # # z = z * std + mean
+        # # DECODER latent to real hidden states
+        # hidden = self.latent2hidden(z)
+
+        # discriminate
+        disc_res = self.discriminator_layer3(self.relu(self.discriminator_layer2(self.relu(self.discriminator_layer1(hidden)))))
+        true_prob = F.softmax(disc_res.squeeze())
+
+        return true_prob
 
     def get_score(self, input_sequence):
         """
@@ -286,6 +378,7 @@ class dialogue_VAE(nn.Module):
         :return: list
         """
         res = []
+        reward_ori = []
         if global_type == "cos":
             input_sequence = self.linear2(self.relu(self.linear1(input.to("cuda"))))
             whole, hidden = self.encoder_rnn(input_sequence)
@@ -310,8 +403,9 @@ class dialogue_VAE(nn.Module):
                 input_linear[0][i][:] = zero
                 input_sequence = self.linear2(self.relu(self.linear1(input_linear.to("cuda"))))
                 whole, hidden = self.encoder_rnn(input_sequence)
-                reward_cur = (1 - self.compare.cos_sam(hidden, hidden_oracle).item())*10 - 1
+                reward_cur = (1 - self.compare.cos_sam(hidden, hidden_oracle).item())*10 - 0.5
                 res.append(reward_cur)
+                reward_ori.append(self.compare.cos_sam(hidden, hidden_oracle).item())
         return res
 
 

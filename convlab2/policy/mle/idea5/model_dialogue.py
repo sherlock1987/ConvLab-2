@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.utils.rnn as rnn_utils
-from utils import to_var
+from .utils import to_var
+import torch.nn.functional as F
 
 class dialogue_VAE(nn.Module):
     def __init__(self, embedding_size, rnn_type, hidden_size, word_dropout, embedding_dropout, latent_size,
@@ -161,3 +162,40 @@ class dialogue_VAE(nn.Module):
         distribution = z * std + mean
 
         return mean, logv, distribution, std
+
+
+    def get_score(self, input_sequence):
+        """
+        :param input_sequence:
+        :param length:
+        :return:
+        """
+        # order
+        batch_size = len(input_sequence)
+        # ENCODER
+        # pack stuff and unpack stuff later.
+        input_sequence = self.linear2(self.relu(self.linear1(input_sequence.to("cuda"))))
+        _, hidden = self.encoder_rnn(input_sequence)
+
+        if self.bidirectional or self.num_layers > 1:
+            # flatten hidden state
+            hidden = hidden.view(batch_size, self.hidden_size * self.hidden_factor)
+        else:
+            hidden = hidden.squeeze()
+
+        # # REPARAMETERIZATION
+        # # related to latent size, which is 16 (16/256)
+        # mean = self.hidden2mean(hidden)
+        # logv = self.hidden2logv(hidden)
+        # std = torch.exp(0.5 * logv)
+        #
+        # z = to_var(torch.randn([batch_size, self.latent_size]))
+        # # z = z * std + mean
+        # # DECODER latent to real hidden states
+        # hidden = self.latent2hidden(z)
+
+        # discriminate
+        disc_res = self.discriminator_layer3(self.relu(self.discriminator_layer2(self.relu(self.discriminator_layer1(hidden)))))
+        true_prob = F.softmax(disc_res.squeeze())[1] - 0.5
+
+        return true_prob

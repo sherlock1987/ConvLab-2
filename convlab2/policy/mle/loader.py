@@ -13,15 +13,18 @@ class ActMLEPolicyDataLoader():
     def __init__(self):
         self.vector = None
 
+
     def _build_data(self, root_dir, processed_dir):
         self.data = {}
         self.terminate = {}
         self.state_whole = {}
+        self.domain = {}
         data_loader = ActPolicyDataloader(dataset_dataloader=MultiWOZDataloader())
         for part in ['train', 'val', 'test']:
             self.data[part] = []
             self.terminate[part] = []
             self.state_whole[part] = []
+            self.domain[part] = []
             raw_data = data_loader.load_data(data_key=part, role='sys')[part]
             for belief_state, context_dialog_act, terminated, dialog_act in \
                     zip(raw_data['belief_state'], raw_data['context_dialog_act'], raw_data['terminated'],
@@ -39,7 +42,10 @@ class ActMLEPolicyDataLoader():
                 self.terminate[part].append(state['terminated'])
 
                 self.state_whole[part].append(state)
-                general_state = state
+                # current_bf = self.vector.state_vectorize(state)
+                # user_action_vec = current_bf[:79]
+                domain_vec = self.vector.return_stuff()
+                self.domain[part].append(domain_vec)
                 print()
         os.makedirs(processed_dir)
         for part in ['train', 'val', 'test']:
@@ -53,6 +59,9 @@ class ActMLEPolicyDataLoader():
         for part in ['train', 'val', 'test']:
             with open(os.path.join(processed_dir, '{}_state_whole.pkl'.format(part)), 'wb') as f:
                 pickle.dump(self.state_whole[part], f)
+        for part in ['train', 'val', 'test']:
+            with open(os.path.join(processed_dir, '{}_domain_vec.pkl'.format(part)), 'wb') as f:
+                pickle.dump(self.domain[part], f)
 
     def _load_data(self, processed_dir):
         self.data = {}

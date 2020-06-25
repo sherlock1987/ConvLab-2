@@ -5,7 +5,7 @@ import numpy as np
 from convlab2.util.train_util import to_device
 import torch.nn as nn
 from torch import optim
-from .idea_3_max_margin import Reward_max_margin
+from convlab2.policy.mle.idea3.idea_3_max_margin import Reward_max_margin
 import matplotlib.pyplot  as plt
 import pickle
 

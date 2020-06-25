@@ -22,7 +22,7 @@ parser.add_argument('--max_sequence_length', type=int, default=60)
 parser.add_argument('--min_occ', type=int, default=1)
 parser.add_argument('--test', action='store_true')
 
-parser.add_argument('-ep', '--epochs', type=int, default=20)
+parser.add_argument('-ep', '--epochs', type=int, default=10)
 parser.add_argument('-bs', '--batch_size', type=int, default=32)
 parser.add_argument('-lr', '--learning_rate', type=float, default=0.001)
 
@@ -160,92 +160,89 @@ def main(args):
             discriminator_target = []
             max_len = 0
             for iteration, batch in enumerate(data_loader_real):
-                temp.append(batch)
-                a_sys = batch[0][-1][340:549].cpu()
-                domain = [0] * 9
-                for i in range(a_sys.shape[0]):
-                    if a_sys[i].item() == 1.:
-                        if 0 <= i <= 39:
-                            domain[0] = 1
-                        elif 40 <= i <= 58:
-                            domain[8] = 1
-                        elif 59 <= i <= 63:
-                            domain[1] = 1
-                        elif 64 <= i <= 110:
-                            domain[2] = 1
-                        elif 111 <= i <= 114:
-                            domain[3] = 1
-                        elif 115 <= i <= 109:
-                            domain[4] = 1
-                        elif 110 <= i <= 160:
-                            domain[5] = 1
-                        elif 170 <= i <= 204:
-                            domain[6] = 1
-                        elif 205 <= i <= 208:
-                            domain[7] = 1
-                # 【 ， ， ， ， ，， ， ，， general, book】
-                # for i, flag in enumerate(a_sys):
-                #     if flag == tensor(1.).cpu():
+                if batch.size(1) >1:
+                    temp.append(batch)
+                    a_sys = batch[0][-1][340:549].clone().cpu()
+                    domain = [0] * 9
+                    for i in range(a_sys.shape[0]):
+                        if a_sys[i].item() == 1.:
+                            if 0 <= i <= 39:
+                                domain[0] = 1
+                            elif 40 <= i <= 58:
+                                domain[8] = 1
+                            elif 59 <= i <= 63:
+                                domain[1] = 1
+                            elif 64 <= i <= 110:
+                                domain[2] = 1
+                            elif 111 <= i <= 114:
+                                domain[3] = 1
+                            elif 115 <= i <= 109:
+                                domain[4] = 1
+                            elif 110 <= i <= 160:
+                                domain[5] = 1
+                            elif 170 <= i <= 204:
+                                domain[6] = 1
+                            elif 205 <= i <= 208:
+                                domain[7] = 1
 
+                    # temp.append(data_loader_fake[iteration])
+                    # discriminator_target.append(1)
+                    # discriminator_target.append(0)
 
-                # temp.append(data_loader_fake[iteration])
-                # discriminator_target.append(1)
-                # discriminator_target.append(0)
+                    discriminator_target.append(domain)
 
-                discriminator_target.append(domain)
+                    max_len = max(max_len, batch.size(1))
+                    if (iteration+1) % (args.batch_size) == 0:
+                        batch_size = len(temp)
 
-                max_len = max(max_len, batch.size(1))
-                if (iteration+1) % (args.batch_size) == 0:
-                    batch_size = len(temp)
+                        # Forward path for VAE
+                        original_input, logp, disc_res = model(temp, max_len)
+                        # original_input, logp, mean, logv, z = model(temp, max_len)
 
-                    # Forward path for VAE
-                    original_input, logp, disc_res = model(temp, max_len)
-                    # original_input, logp, mean, logv, z = model(temp, max_len)
+                        # loss calculation
+                        loss1, loss2 = loss_fn(logp, original_input.to("cuda"), disc_res, torch.tensor(discriminator_target).float().to("cuda"))
+                        loss = loss1 + loss2 * 2
+                        if (batch_id+1) % 1000 == 0:
+                            print("loss1 & 2:",loss1.item()/batch_size, loss2.item()/batch_size)
+                        # NLL_loss, KL_loss, KL_weight = loss_fn(logp, original_input.to("cuda"),
+                        #                                        max_len, mean, logv, args.anneal_function, step, args.k, args.x0)
+                        #loss = (NLL_loss + KL_weight * KL_loss)
 
-                    # loss calculation
-                    loss1, loss2 = loss_fn(logp, original_input.to("cuda"), disc_res, torch.tensor(discriminator_target).float().to("cuda"))
-                    loss = loss1 + loss2 * 2
-                    if (batch_id+1) % 1000 == 0:
-                        print("loss1 & 2:",loss1.item()/batch_size, loss2.item()/batch_size)
-                    # NLL_loss, KL_loss, KL_weight = loss_fn(logp, original_input.to("cuda"),
-                    #                                        max_len, mean, logv, args.anneal_function, step, args.k, args.x0)
-                    #loss = (NLL_loss + KL_weight * KL_loss)
+                        # evluation stuff
+                        # backward + optimization
+                        if split == 'train':
+                            optimizer.zero_grad()
+                            loss.backward()
+                            optimizer.step()
+                            step += 1
 
-                    # evluation stuff
-                    # backward + optimization
-                    if split == 'train':
-                        optimizer.zero_grad()
-                        loss.backward()
-                        optimizer.step()
-                        step += 1
+                        # bookkeepeing
+                        tracker['ELBO'] = torch.cat((tracker['ELBO'], loss.detach().unsqueeze(0)))
+                        if split == "test":
+                            l1_loss = torch.sum(torch.abs((logp > 0.5).type(torch.FloatTensor) - original_input)).to("cuda")
+                            tracker['l1_loss'] = torch.cat((tracker['l1_loss'], l1_loss.unsqueeze(0)))
 
-                    # bookkeepeing
-                    tracker['ELBO'] = torch.cat((tracker['ELBO'], loss.detach().unsqueeze(0)))
-                    if split == "test":
-                        l1_loss = torch.sum(torch.abs((logp > 0.5).type(torch.FloatTensor) - original_input)).to("cuda")
-                        tracker['l1_loss'] = torch.cat((tracker['l1_loss'], l1_loss.unsqueeze(0)))
+                        if args.tensorboard_logging and (batch_id+1) % args.print_every == 0:
+                            writer.add_scalar("%s/ELBO"%split.upper(), loss.item()/batch_size,  batch_id)
+                            # writer.add_scalar("%s/NLL Loss"%split.upper(), NLL_loss.item()/batch_size,  batch_id)
+                            # writer.add_scalar("%s/KL Loss"%split.upper(), KL_loss.item()/batch_size,  batch_id)
+                            # writer.add_scalar("%s/KL Weight"%split.upper(), KL_weight, batch_id)
 
-                    if args.tensorboard_logging and (batch_id+1) % args.print_every == 0:
-                        writer.add_scalar("%s/ELBO"%split.upper(), loss.item()/batch_size,  batch_id)
-                        # writer.add_scalar("%s/NLL Loss"%split.upper(), NLL_loss.item()/batch_size,  batch_id)
-                        # writer.add_scalar("%s/KL Loss"%split.upper(), KL_loss.item()/batch_size,  batch_id)
-                        # writer.add_scalar("%s/KL Weight"%split.upper(), KL_weight, batch_id)
+                        # if (batchID+1) % args.print_every == 0: # or iteration+1 == len(data_loader):
+                        #     print("%s Batch %04d/%i, Loss %9.4f, NLL-Loss %9.4f, KL-Loss %9.4f, KL-Weight %6.3f"
+                        #         %(split.upper(), batchID, len(data_loader)-1, loss.item()/batch_size, NLL_loss.item()/batch_size, KL_loss.item()/batch_size, KL_weight))
 
-                    # if (batchID+1) % args.print_every == 0: # or iteration+1 == len(data_loader):
-                    #     print("%s Batch %04d/%i, Loss %9.4f, NLL-Loss %9.4f, KL-Loss %9.4f, KL-Weight %6.3f"
-                    #         %(split.upper(), batchID, len(data_loader)-1, loss.item()/batch_size, NLL_loss.item()/batch_size, KL_loss.item()/batch_size, KL_weight))
+                        # if split == 'valid':
+                        #     if 'target_sents' not in tracker:
+                        #         tracker['target_sents'] = list()
+                        #
+                        #     tracker['target_sents'] += idx2word(batch['target'].tolist(), i2w=datasets['train'].get_i2w(), pad_idx=datasets['train'].pad_idx)
+                        #     tracker['z'] = torch.cat((tracker['z'], z.data), dim=0)
 
-                    # if split == 'valid':
-                    #     if 'target_sents' not in tracker:
-                    #         tracker['target_sents'] = list()
-                    #
-                    #     tracker['target_sents'] += idx2word(batch['target'].tolist(), i2w=datasets['train'].get_i2w(), pad_idx=datasets['train'].pad_idx)
-                    #     tracker['z'] = torch.cat((tracker['z'], z.data), dim=0)
-
-                    temp = []
-                    discriminator_target = []
-                    max_len = 0
-                    batch_id += 1
+                        temp = []
+                        discriminator_target = []
+                        max_len = 0
+                        batch_id += 1
 
             total_len = 0
             for ele in temp:
@@ -276,11 +273,9 @@ def main(args):
                 print("Model saved at %s"%checkpoint_path)
 
     save_path = "./bin/"
-    torch.save(model.state_dict(), save_path + "idea6.pol.mdl")
+    torch.save(model.state_dict(), save_path + "idea6_domain.pol.mdl")
 
 
 
 if __name__ == '__main__':
-
-
     main(args_idea5)

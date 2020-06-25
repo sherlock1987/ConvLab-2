@@ -1,9 +1,14 @@
 import torch
 import torch.nn as nn
 import torch.nn.utils.rnn as rnn_utils
-from utils import to_var
+try:
+    from utils import to_var
+except Exception as e:
+    from .utils import to_var
+
 import torch.nn.functional as F
 import torch.tensor as tensor
+import copy
 
 class Compare():
     def __init__(self):
@@ -71,28 +76,84 @@ class dialogue_VAE(nn.Module):
         self.output_layer = nn.Linear(hidden_size * (2 if bidirectional else 1), embedding_size)
         self.sigmoid = nn.Sigmoid()
         self.relu = nn.ReLU()
-        self.discriminator_layer1 = nn.Linear(hidden_size * self.hidden_factor, 128)
+        self.discriminator_layer1 = nn.Linear(hidden_size * self.hidden_factor + 340, 128)
         self.discriminator_layer2 = nn.Linear(128,32)
         self.discriminator_layer3 = nn.Linear(32,9)
+        self.bceLoss = nn.BCEWithLogitsLoss()
 
     def mask_last_action(self, input):
-        for s in input:
+        output = copy.deepcopy(input)
+        for s in output:
             s[0, -1, 340:549] = 0.
-        return input
+        return output
 
+    def get_last_action(self, input):
+        return input[0][-1][340:549]
+
+    def domain_classifier(self, action):
+        domain = [0] * 9
+        a = action.clone()
+        for i in range(a.shape[0]):
+            if a[i].item() == 1.:
+                if 0 <= i <= 39:
+                    domain[0] = 1
+                elif 40 <= i <= 58:
+                    domain[8] = 1
+                elif 59 <= i <= 63:
+                    domain[1] = 1
+                elif 64 <= i <= 110:
+                    domain[2] = 1
+                elif 111 <= i <= 114:
+                    domain[3] = 1
+                elif 115 <= i <= 109:
+                    domain[4] = 1
+                elif 110 <= i <= 160:
+                    domain[5] = 1
+                elif 170 <= i <= 204:
+                    domain[6] = 1
+                elif 205 <= i <= 208:
+                    domain[7] = 1
+        return domain
+
+    def extract_prev_bf(self, input):
+        """
+        :param input: list [ [] [] [] [] [] [] [] [] ] or tensor [ , , ]
+        :return: prev: list, bf [ 1, 53, 340]
+        """
+        type_1 = type(input)
+        if type(input) == list:
+            # this is for forward func
+            prev = copy.deepcopy(input)
+            output_prev = []
+            bf = torch.tensor([]).to("cuda") # empty clips
+            for i, ele in enumerate(prev):
+                bf_ele = ele[0][-1][0:340].clone().unsqueeze(0)
+                ele_prev = ele[0][:-1].unsqueeze(0)
+                output_prev.append(ele_prev)
+                bf = torch.cat((bf, bf_ele), 0)
+        elif type(input) == torch.Tensor:
+            # this is for compute
+            prev = input.clone()
+            bf = prev[0][-1][0:340].clone().unsqueeze(0)
+            output_prev = prev[0][:-1].unsqueeze(0)
+
+        else:
+            raise NotImplementedError
+
+        return  output_prev, bf
 
     def forward(self, input_sequence, max_len):
         """
+        using the previous to do AE, and use prev hidden + bf to make domain classifier
         :param input_sequence:
         :param length:
-        :return:
+        :return: loss
         """
-        # order
         batch_size = len(input_sequence)
-        input_sequence = self.mask_last_action(input_sequence)
-        # ENCODER
-        # pack stuff and unpack stuff later.
-        original_input_tensor, padded_input_sequence, sorted_lengths, sorted_idx = self.concatenate_zero(input_sequence, max_len)
+        # extract the previous fea, and current bf
+        prev, bf = self.extract_prev_bf(input_sequence)
+        # remember to max_len - 1
+        original_input_tensor, padded_input_sequence, sorted_lengths, sorted_idx = self.concatenate_zero(prev, max_len - 1)
         padded_input_sequence_decoder = padded_input_sequence.clone()
         padded_input_sequence = self.linear2(self.relu(self.linear1(padded_input_sequence.to("cuda"))))
 
@@ -101,7 +162,7 @@ class dialogue_VAE(nn.Module):
         _, hidden = self.encoder_rnn(packed_input)
 
         if self.bidirectional or self.num_layers > 1:
-            # flatten hidden state
+            # flatten hidden state to [b, 1024]
             hidden = hidden.view(batch_size, self.hidden_size * self.hidden_factor)
         else:
             hidden = hidden.squeeze()
@@ -117,8 +178,9 @@ class dialogue_VAE(nn.Module):
         # # DECODER latent to real hidden states
         # hidden = self.latent2hidden(z)
 
-        # discriminate
-        disc_res = self.discriminator_layer3(self.relu(self.discriminator_layer2(self.relu(self.discriminator_layer1(hidden)))))
+        # from [hidden : belief state] to make classify
+        hidden_bf = torch.cat((hidden, bf), 1)
+        disc_res = self.discriminator_layer3(self.relu(self.discriminator_layer2(self.relu(self.discriminator_layer1(hidden_bf)))))
 
         # add VAE is better than NONE
         if self.bidirectional or self.num_layers > 1:
@@ -157,21 +219,27 @@ class dialogue_VAE(nn.Module):
         return original_input_tensor, outputs_layer, disc_res
 
     def concatenate_zero(self, input, max_len):
+        """
+        :param input: list [[,,] [,,] [,,] [,,] [,,] ]
+        :param max_len:
+        :return:pad input, pad_input_sort, sorted_length, sorted_idx
+        """
         output = torch.zeros(size = (len(input), max_len, self.input_size))
 
         len_list = []
         for i, element in enumerate(input):
             len_dialogue = element.size(1)
+            assert len_dialogue <= max_len
             len_list.append(len_dialogue)
-            left = output[i][1]
-            right = element[0]
+
             for j in range(len_dialogue):
                 output[i][j] = element[0][j]
 
-        original_input_tensor = output
+        pad_input_tensor = output
         sorted_lengths, sorted_idx = torch.sort(torch.tensor(len_list), descending=True)
-        input_sequence = output[sorted_idx]
-        return original_input_tensor, input_sequence, sorted_lengths, sorted_idx
+        # sort stuff
+        input_sequence = output.clone()[sorted_idx]
+        return pad_input_tensor, input_sequence, sorted_lengths, sorted_idx
 
     def compress(self,input):
 
@@ -196,9 +264,8 @@ class dialogue_VAE(nn.Module):
 
         return mean, logv, distribution, std
 
-    def get_reward(self, r, s, a, mask, local=True, globa = True):
+    def get_reward(self, r, s, a, mask, globa_bool = False):
         """
-        we save a trajectory in continuous space and it reaches the ending of current trajectory when mask=0.
         :param r: reward, Tensor, [b]
         :param mask: indicates ending for 0 otherwise 1, Tensor, [b]
         :param s: state, Tensor, [b,340]
@@ -228,29 +295,31 @@ class dialogue_VAE(nn.Module):
                 # for the last one, the reward should follow the system. 5, 40, -1, that's it.
                 last_reward = r[i].item()
                 reward_collc.append(last_reward)
-                global_score = self.get_score_global(input, global_type= "mask")
-                global_score.append(0)
-                # add global score
-                for i in range(len(reward_collc)):
-                    reward_collc[i] += global_score[i]
+                if globa_bool:
+                    global_score = self.get_score_global(input, global_type= "mask")
+                    global_score.append(0)
+                    # add global score
+                    for i in range(len(reward_collc)):
+                        reward_collc[i] += global_score[i]
+
                 s_temp = torch.tensor([])
                 a_temp = torch.tensor([])
                 reward_predict += reward_collc
                 reward_collc = []
-            #   compute the last one, terminate clear the button, that is okay for us.
             else:
-                with torch.no_grad():
-                    # self.g
-                    fake_score = self.get_score_idea6(input)
-                    reward_collc.append(fake_score.item())
-
+                # to describe whether it is the first, first just give 1.
+                if input.size(1) > 1:
+                    domain_score = self.get_score_domain(input)
+                    reward_collc.append(domain_score.item())
+                else:
+                    reward_collc.append(0.5)
         reward_predict = torch.tensor(reward_predict)
 
         return reward_predict
 
     def get_reward_global(self, r, s, a, mask, globa_type = "mask"):
         """
-        we save a trajectory in continuous space and it reaches the ending of current trajectory when mask=0.
+        Only consist the global score.
         :param r: reward, Tensor, [b]
         :param mask: indicates ending for 0 otherwise 1, Tensor, [b]
         :param s: state, Tensor, [b,340]
@@ -292,22 +361,22 @@ class dialogue_VAE(nn.Module):
         reward_predict = torch.tensor(reward_predict)
 
         return reward_predict
-
-    def get_score_idea6(self, input_sequence):
+    # sub func for reward computation
+    def get_score_domain(self, input):
         """
-        :param input_sequence: list
+        Get current dialogue score for the domain.
+        This is a sub_function
+        :param input: [ , , ]
         :param gloabl: bool, true meaning to this stuff.
         :param gloabl type: Hindsight, mask
         :return: reward computation
         """
-        # order
-        seq_len = len(input_sequence)
-        batch_size = input_sequence[0][0]
-        input_last = input_sequence[-1]
+        output_action = self.get_last_action(input.clone())
+        input_rnn, bf = self.extract_prev_bf(input)
+        batch_size = input_rnn.shape[0]
         # ENCODER
-        # pack stuff and unpack stuff later.
-        input_sequence = self.linear2(self.relu(self.linear1(input_sequence.to("cuda"))))
-        _, hidden = self.encoder_rnn(input_sequence)
+        input_mask = self.linear2(self.relu(self.linear1(input_rnn.to("cuda"))))
+        _, hidden = self.encoder_rnn(input_mask)
 
         if self.bidirectional or self.num_layers > 1:
             # flatten hidden state
@@ -327,25 +396,27 @@ class dialogue_VAE(nn.Module):
         # hidden = self.latent2hidden(z)
 
         # discriminate
-        disc_res = self.discriminator_layer3(self.relu(self.discriminator_layer2(self.relu(self.discriminator_layer1(hidden)))))
-        true_prob = F.softmax(disc_res.squeeze())
-
-        return true_prob
-
-    def get_score(self, input_sequence):
+        hidden_bf = torch.cat((hidden, bf), 1)
+        disc_res = self.discriminator_layer3(self.relu(self.discriminator_layer2(self.relu(self.discriminator_layer1(hidden_bf)))))
+        action_domain = self.domain_classifier(output_action)
+        prob = self.sigmoid(disc_res)
+        score = torch.sum(torch.tensor(action_domain).to("cuda") * prob.squeeze(0))
+        return score
+    # sub func for reward computation
+    def get_score_fake(self, input):
         """
-        :param input_sequence: list
+        Get current dialogue score for the fake/real.
+        This is a sub_function
+        This is only for descriminating fake or real data.
+        :param input_sequence: [ , , ]
         :param gloabl: bool, true meaning to this stuff.
         :param gloabl type: Hindsight, mask
         :return: reward computation
         """
-        # order
-        seq_len = len(input_sequence)
-        batch_size = input_sequence[0][0]
-        input_last = input_sequence[-1]
-        # ENCODER
         # pack stuff and unpack stuff later.
-        input_sequence = self.linear2(self.relu(self.linear1(input_sequence.to("cuda"))))
+        batch_size = input.size(0)
+        input_mask = self.mask_last_action(input)
+        input_sequence = self.linear2(self.relu(self.linear1(input.to("cuda"))))
         _, hidden = self.encoder_rnn(input_sequence)
 
         if self.bidirectional or self.num_layers > 1:
@@ -370,7 +441,7 @@ class dialogue_VAE(nn.Module):
         true_prob = F.softmax(disc_res.squeeze())[1] - 0.5
 
         return true_prob
-
+    # sub func for reward computation
     def get_score_global(self, input, global_type = "cos"):
         """
         :param input:[ , , ]
@@ -401,11 +472,14 @@ class dialogue_VAE(nn.Module):
             for i in range(length - 1):
                 input_linear = input.clone()
                 input_linear[0][i][:] = zero
+                # should mask the action, is that right?
                 input_sequence = self.linear2(self.relu(self.linear1(input_linear.to("cuda"))))
                 whole, hidden = self.encoder_rnn(input_sequence)
                 reward_cur = (1 - self.compare.cos_sam(hidden, hidden_oracle).item())*10 - 0.5
                 res.append(reward_cur)
                 reward_ori.append(self.compare.cos_sam(hidden, hidden_oracle).item())
+        else:
+            raise NotImplementedError
         return res
 
 

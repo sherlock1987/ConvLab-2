@@ -15,7 +15,6 @@ import zipfile
 import sys
 from convlab2.policy.mle.idea5.model_dialogue import dialogue_VAE
 from convlab2.policy.mle.idea2_predict_next_action import Reward_predict
-from convlab2.policy.mle.idea_3_max_margin import Reward_max_margin
 
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 root_dir = "/home/raliegh/图片/ConvLab-2/"
@@ -64,7 +63,7 @@ class PPO(Policy):
             embedding_dropout=1,
             latent_size=256,
             num_layers=1,
-            bidirectional=False
+            bidirectional=True
         )
 
     def predict(self, state):
@@ -189,7 +188,9 @@ class PPO(Policy):
         :param s: state, Tensor, [b,340]
         :param a: action, Tensor, [b,209]
         """
-        reward_predict = self.reward_predictor_idea5.get_reward(r, s, a, mask)
+        # reward_predict = self.reward_predictor_idea5.get_reward(r, s, a, mask)
+        with torch.no_grad():
+            reward_predict = self.reward_predictor_idea5.get_reward(r, s, a, mask, globa_bool = False)
         reward_predict = tensor(reward_predict)
         return reward_predict
 
@@ -358,6 +359,7 @@ class PPO(Policy):
                 self.reward_predictor_idea5 = self.reward_predictor_idea5.to(DEVICE)
                 logging.info('<<dialog policy>> loaded reward_idea5 model checkpoint from file: {}'.format(policy_mdl))
                 break
+
 
     def load_from_pretrained(self, archive_file, model_file, filename):
         if not os.path.isfile(archive_file):

@@ -15,7 +15,7 @@ import zipfile
 import sys
 
 from convlab2.policy.mle.idea2_predict_next_action import Reward_predict
-from convlab2.policy.mle.idea_3_max_margin import Reward_max_margin
+from convlab2.policy.mle.idea3.idea_3_max_margin import Reward_max_margin
 
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 sys.path.append(root_dir)

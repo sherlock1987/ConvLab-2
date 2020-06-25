@@ -44,7 +44,7 @@ class MultiWozVector(Vector):
         self.character = character
         self.generate_dict()
         self.cur_domain = None
-
+        self.domain_vec = []
     def generate_dict(self):
         """
         init the dict for mapping state/action into vector
@@ -71,6 +71,7 @@ class MultiWozVector(Vector):
                 if k in mapping[domain.lower()]:
                     constraint.append((mapping[domain.lower()][k], v))
             entities = self.db.query(domain.lower(), constraint)
+            # entities is some stuff, right?
             pointer_vector = self.one_hot_vector(len(entities), domain, pointer_vector)
 
         return pointer_vector
@@ -135,7 +136,7 @@ class MultiWozVector(Vector):
         for da in opp_action:
             if da in self.opp2vec:
                 opp_act_vec[self.opp2vec[da]] = 1.
-
+        self.domain_vec = self.domain_classifier(opp_act_vec)
         action = state['system_action'] if self.character == 'sys' else state['user_action']
         action = delexicalize_da(action, self.requestable)
         action = flat_da(action)
@@ -156,7 +157,7 @@ class MultiWozVector(Vector):
         for i, domain in enumerate(self.db_domains):
             if state['belief_state'][domain.lower()]['book']['booked']:
                 book[i] = 1.
-
+        # pointer is a kink of way for pointing to database.
         degree = self.pointer(state['belief_state'])
 
         final = 1. if state['terminated'] else 0.
@@ -215,3 +216,36 @@ class MultiWozVector(Vector):
             if da in self.act2vec:
                 act_vec[self.act2vec[da]] = 1.
         return act_vec
+
+    def return_stuff(self):
+        return self.domain_vec
+
+    def domain_classifier(self, user_action_vec):
+        domain = np.zeros(8)
+        for i, flag in enumerate(user_action_vec):
+            # 1-10
+            # 11-15
+            # 16-36
+            # 37-41
+            # 42-56
+            # 57-62
+            # 63-75
+            # 76-78
+            if flag == 1:
+                if   0<=i<=9:
+                    domain[0] = 1
+                elif 10<=i<=14:
+                    domain[1] = 1
+                elif 15 <= i <= 35:
+                    domain[2] = 1
+                elif 36 <= i <= 40:
+                    domain[3] = 1
+                elif 41 <= i <= 55:
+                    domain[4] = 1
+                elif 56 <= i <= 61:
+                    domain[5] = 1
+                elif 62 <= i <= 74:
+                    domain[6] = 1
+                elif 75 <= i <= 77:
+                    domain[7] = 1
+        return domain

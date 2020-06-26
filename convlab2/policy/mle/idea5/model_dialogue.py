@@ -9,6 +9,9 @@ except Exception as e:
 import torch.nn.functional as F
 import torch.tensor as tensor
 import copy
+import numpy as np
+from collections import defaultdict
+from convlab2.policy.mle.idea5.train_dialogue import loss_fn
 
 class Compare():
     def __init__(self):
@@ -80,6 +83,7 @@ class dialogue_VAE(nn.Module):
         self.discriminator_layer2 = nn.Linear(128,32)
         self.discriminator_layer3 = nn.Linear(32,9)
         self.bceLoss = nn.BCEWithLogitsLoss()
+        self.optimizer = torch.optim.Adam(self.parameters(), lr= 0.001)
 
     def mask_last_action(self, input):
         output = copy.deepcopy(input)
@@ -91,28 +95,37 @@ class dialogue_VAE(nn.Module):
         return input[0][-1][340:549]
 
     def domain_classifier(self, action):
-        domain = [0] * 9
-        a = action.clone()
-        for i in range(a.shape[0]):
-            if a[i].item() == 1.:
-                if 0 <= i <= 39:
-                    domain[0] = 1
-                elif 40 <= i <= 58:
-                    domain[8] = 1
-                elif 59 <= i <= 63:
-                    domain[1] = 1
-                elif 64 <= i <= 110:
-                    domain[2] = 1
-                elif 111 <= i <= 114:
-                    domain[3] = 1
-                elif 115 <= i <= 109:
-                    domain[4] = 1
-                elif 110 <= i <= 160:
-                    domain[5] = 1
-                elif 170 <= i <= 204:
-                    domain[6] = 1
-                elif 205 <= i <= 208:
-                    domain[7] = 1
+        """
+        :param action: action is from tensor or list of tensor
+        :param temp:
+        :return:
+        """
+        if type(action) == torch.Tensor:
+            domain = [0] * 9
+            a = action.clone()
+            for i in range(a.shape[0]):
+                if a[i].item() == 1.:
+                    if 0 <= i <= 39:
+                        domain[0] = 1
+                    elif 40 <= i <= 58:
+                        domain[8] = 1
+                    elif 59 <= i <= 63:
+                        domain[1] = 1
+                    elif 64 <= i <= 110:
+                        domain[2] = 1
+                    elif 111 <= i <= 114:
+                        domain[3] = 1
+                    elif 115 <= i <= 109:
+                        domain[4] = 1
+                    elif 110 <= i <= 160:
+                        domain[5] = 1
+                    elif 170 <= i <= 204:
+                        domain[6] = 1
+                    elif 205 <= i <= 208:
+                        domain[7] = 1
+        elif type(action) == list:
+            pass
+
         return domain
 
     def extract_prev_bf(self, input):
@@ -142,9 +155,22 @@ class dialogue_VAE(nn.Module):
 
         return  output_prev, bf
 
-    def forward(self, input_sequence, max_len):
+    def get_max_len(self, input_seq):
+        """
+        :param input_seq: [ ,  , ]
+        :return: int
+        """
+        max_len = 0
+        process = copy.deepcopy(input_seq)
+        for i in range(len(process)):
+            cur_len = process[i].size(1)
+            max_len = max(max_len, cur_len)
+        return max_len
+
+    def forward(self, input_sequence):
         """
         using the previous to do AE, and use prev hidden + bf to make domain classifier
+        data.size(1) >= 2
         :param input_sequence:
         :param length:
         :return: loss
@@ -153,6 +179,7 @@ class dialogue_VAE(nn.Module):
         # extract the previous fea, and current bf
         prev, bf = self.extract_prev_bf(input_sequence)
         # remember to max_len - 1
+        max_len = self.get_max_len(input_sequence)
         original_input_tensor, padded_input_sequence, sorted_lengths, sorted_idx = self.concatenate_zero(prev, max_len - 1)
         padded_input_sequence_decoder = padded_input_sequence.clone()
         padded_input_sequence = self.linear2(self.relu(self.linear1(padded_input_sequence.to("cuda"))))
@@ -264,7 +291,7 @@ class dialogue_VAE(nn.Module):
 
         return mean, logv, distribution, std
 
-    def get_reward(self, r, s, a, mask, globa_bool = False):
+    def get_reward(self, r, s, a, mask,  globa_bool = False, global_type = "mask"):
         """
         :param r: reward, Tensor, [b]
         :param mask: indicates ending for 0 otherwise 1, Tensor, [b]
@@ -275,8 +302,12 @@ class dialogue_VAE(nn.Module):
         batchsz = r.shape[0]
         s_temp = torch.tensor([])
         a_temp = torch.tensor([])
-        # stor the data elementise
+        # store the data elementise
         reward_collc = []
+        # store the data for updating
+        data_collc = defaultdict(list)
+        data_sub = []
+        data_reward_collc = defaultdict(list)
         for i in range(batchsz):
             # current　states and actions
             s_1 = s[i].unsqueeze(0)
@@ -296,26 +327,70 @@ class dialogue_VAE(nn.Module):
                 last_reward = r[i].item()
                 reward_collc.append(last_reward)
                 if globa_bool:
-                    global_score = self.get_score_global(input, global_type= "mask")
+                    global_score = self.get_score_global(input, global_type = global_type)
                     global_score.append(0)
                     # add global score
                     for i in range(len(reward_collc)):
                         reward_collc[i] += global_score[i]
+                #
+                data_sub.append(input)
+                data_collc[sum(reward_collc)].append(data_sub)
+                data_reward_collc[sum(reward_collc)].append(reward_collc)
 
+                reward_predict += reward_collc
+                # clear
                 s_temp = torch.tensor([])
                 a_temp = torch.tensor([])
-                reward_predict += reward_collc
                 reward_collc = []
+                data_sub = []
             else:
                 # to describe whether it is the first, first just give 1.
                 if input.size(1) > 1:
                     domain_score = self.get_score_domain(input)
                     reward_collc.append(domain_score.item())
+                    data_sub.append(input)
                 else:
                     reward_collc.append(0.5)
         reward_predict = torch.tensor(reward_predict)
-
+        # update the reward model first.
+        self.update(data_collc, 3, 32)
         return reward_predict
+
+    def update(self, input, num_dia, bs):
+        """
+        :param input: dict {num}: [tensors, tensors, tensors]...
+        :return:
+        """
+        data = copy.deepcopy(input)
+        # pick the top, then update this stuff.
+        key = list(input.keys())
+        key.sort(reverse = True)
+        batch = []
+        for ele in key:
+            if num_dia > 0:
+                if ele > 40:
+                    batch+=data[ele]
+                    num_dia -=1
+        input = []
+        discriminator_target = []
+        for i in range(len(batch)):
+            temp = copy.deepcopy(batch[i])
+            for j in range(len(temp)):
+                input.append(temp[j])
+                one = temp[j].clone()[0][-1][340:549]
+                discriminator_target.append(self.domain_classifier(one))
+                if len(input) > 10:
+                    original_input, logp, disc_res = self.forward(input)
+                    loss1, loss2 = loss_fn(logp, original_input.to("cuda"), disc_res,
+                                           torch.tensor(discriminator_target).float().to("cuda"))
+                    loss = loss1 + loss2 * 2
+                    print("LOSS(updating for reward model): ",loss.item())
+                    self.optimizer.zero_grad()
+                    loss.backward()
+                    self.optimizer.step()
+                    # clear stuff
+                    input = []
+                    discriminator_target = []
 
     def get_reward_global(self, r, s, a, mask, globa_type = "mask"):
         """
@@ -441,6 +516,7 @@ class dialogue_VAE(nn.Module):
         true_prob = F.softmax(disc_res.squeeze())[1] - 0.5
 
         return true_prob
+
     # sub func for reward computation
     def get_score_global(self, input, global_type = "cos"):
         """
@@ -467,12 +543,10 @@ class dialogue_VAE(nn.Module):
             input_sequence = self.linear2(self.relu(self.linear1(input.to("cuda"))))
             whole, hidden_oracle = self.encoder_rnn(input_sequence)
 
-            zero = torch.zeros(549)
-
+            zero = torch.zeros(209)
             for i in range(length - 1):
                 input_linear = input.clone()
-                input_linear[0][i][:] = zero
-                # should mask the action, is that right?
+                input_linear[0][i][340:549] = zero
                 input_sequence = self.linear2(self.relu(self.linear1(input_linear.to("cuda"))))
                 whole, hidden = self.encoder_rnn(input_sequence)
                 reward_cur = (1 - self.compare.cos_sam(hidden, hidden_oracle).item())*10 - 0.5

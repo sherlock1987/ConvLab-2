@@ -9,49 +9,34 @@ from torch.utils.data import DataLoader
 from collections import OrderedDict, defaultdict
 import pickle
 from tensorboardX import SummaryWriter
-from model_dialogue import dialogue_VAE
-from utils import expierment_name
+from convlab2.policy.mle.idea5.utils import expierment_name
+
+import os
+import json
+import time
+import torch
+import argparse
+import numpy as np
+from multiprocessing import cpu_count
+from torch.utils.data import DataLoader
+from collections import OrderedDict, defaultdict
+import pickle
+from tensorboardX import SummaryWriter
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-# args stuff
-parser = argparse.ArgumentParser()
-parser.add_argument('--data_dir', type=str, default='data')
-parser.add_argument('--create_data', action='store_true')
-parser.add_argument('--max_sequence_length', type=int, default=60)
-parser.add_argument('--min_occ', type=int, default=1)
-parser.add_argument('--test', action='store_true')
 
-parser.add_argument('-ep', '--epochs', type=int, default=10)
-parser.add_argument('-bs', '--batch_size', type=int, default=32)
-parser.add_argument('-lr', '--learning_rate', type=float, default=0.001)
 
-parser.add_argument('-eb', '--embedding_size', type=int, default=549)
-parser.add_argument('-rnn', '--rnn_type', type=str, default='gru')
-parser.add_argument('-hs', '--hidden_size', type=int, default=512)
-parser.add_argument('-nl', '--num_layers', type=int, default=1)
-parser.add_argument('-bi', '--bidirectional', type = bool, default= True)
-parser.add_argument('-ls', '--latent_size', type=int, default=256)
-parser.add_argument('-wd', '--word_dropout', type=float, default=1)
-parser.add_argument('-ed', '--embedding_dropout', type=float, default=1)
+device = "cuda" if torch.cuda.is_available() else "cpu"
+# define the loss function, model_dialogue could also use that.
+pos_weights = torch.full([549], 2, dtype=torch.float).to(device)
+reconstruction_loss = torch.nn.BCEWithLogitsLoss(reduction="sum", pos_weight=pos_weights)
+classification_loss = torch.nn.BCEWithLogitsLoss(reduction="sum")
 
-parser.add_argument('-af', '--anneal_function', type=str, default='logistic')
-parser.add_argument('-k', '--k', type=float, default=0.0025)
-parser.add_argument('-x0', '--x0', type=int, default=2500)
-
-parser.add_argument('-v', '--print_every', type=int, default=20)
-parser.add_argument('-tb', '--tensorboard_logging', action='store_true')
-parser.add_argument('-log', '--logdir', type=str, default='logs')
-parser.add_argument('-bin', '--save_model_path', type=str, default='bin')
-
-args_idea5 = parser.parse_args()
-
-args_idea5.rnn_type = args_idea5.rnn_type.lower()
-args_idea5.anneal_function = args_idea5.anneal_function.lower()
-
-assert args_idea5.rnn_type in ['rnn', 'lstm', 'gru']
-assert args_idea5.anneal_function in ['logistic', 'linear']
-assert 0 <= args_idea5.word_dropout <= 1
+def loss_fn(logp, target, disc_res, disc_tar):
+    loss1 = reconstruction_loss(logp, target)
+    loss2 = classification_loss(disc_res, disc_tar)
+    return loss1, loss2
 
 
 def main(args):
@@ -111,16 +96,6 @@ def main(args):
     # NLL = torch.nn.NLLLoss(size_average=False)
     # Reconstruction_loss = torch.nn.BCELoss(reduction="sum")
 
-    pos_weights = torch.full([549],2, dtype = torch.float).to(device)
-    reconstruction_loss = torch.nn.BCEWithLogitsLoss(reduction="sum", pos_weight=pos_weights)
-    classification_loss = torch.nn.BCEWithLogitsLoss(reduction="sum")
-
-    def loss_fn(logp, target, disc_res, disc_tar):
-        loss1 = reconstruction_loss(logp, target)
-        loss2 = classification_loss(disc_res,disc_tar)
-        return loss1, loss2
-
-
     # def loss_fn(logp, target, length, mean, logv, anneal_function, step, k, x0):
     #
     #     # cut-off unnecessary padding from target, and flatten
@@ -158,11 +133,10 @@ def main(args):
 
             temp = []
             discriminator_target = []
-            max_len = 0
             for iteration, batch in enumerate(data_loader_real):
                 if batch.size(1) >1:
                     temp.append(batch)
-                    a_sys = batch[0][-1][340:549].clone().cpu()
+                    a_sys = batch[0][-1][340:549].clone()
                     domain = [0] * 9
                     for i in range(a_sys.shape[0]):
                         if a_sys[i].item() == 1.:
@@ -191,12 +165,10 @@ def main(args):
 
                     discriminator_target.append(domain)
 
-                    max_len = max(max_len, batch.size(1))
                     if (iteration+1) % (args.batch_size) == 0:
                         batch_size = len(temp)
-
                         # Forward path for VAE
-                        original_input, logp, disc_res = model(temp, max_len)
+                        original_input, logp, disc_res = model(temp)
                         # original_input, logp, mean, logv, z = model(temp, max_len)
 
                         # loss calculation
@@ -276,6 +248,45 @@ def main(args):
     torch.save(model.state_dict(), save_path + "idea6_domain.pol.mdl")
 
 
-
 if __name__ == '__main__':
+    # args stuff
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data_dir', type=str, default='data')
+    parser.add_argument('--create_data', action='store_true')
+    parser.add_argument('--max_sequence_length', type=int, default=60)
+    parser.add_argument('--min_occ', type=int, default=1)
+    parser.add_argument('--test', action='store_true')
+
+    parser.add_argument('-ep', '--epochs', type=int, default=10)
+    parser.add_argument('-bs', '--batch_size', type=int, default=32)
+    parser.add_argument('-lr', '--learning_rate', type=float, default=0.001)
+
+    parser.add_argument('-eb', '--embedding_size', type=int, default=549)
+    parser.add_argument('-rnn', '--rnn_type', type=str, default='gru')
+    parser.add_argument('-hs', '--hidden_size', type=int, default=512)
+    parser.add_argument('-nl', '--num_layers', type=int, default=1)
+    parser.add_argument('-bi', '--bidirectional', type=bool, default=True)
+    parser.add_argument('-ls', '--latent_size', type=int, default=256)
+    parser.add_argument('-wd', '--word_dropout', type=float, default=1)
+    parser.add_argument('-ed', '--embedding_dropout', type=float, default=1)
+
+    parser.add_argument('-af', '--anneal_function', type=str, default='logistic')
+    parser.add_argument('-k', '--k', type=float, default=0.0025)
+    parser.add_argument('-x0', '--x0', type=int, default=2500)
+
+    parser.add_argument('-v', '--print_every', type=int, default=20)
+    parser.add_argument('-tb', '--tensorboard_logging', action='store_true')
+    parser.add_argument('-log', '--logdir', type=str, default='logs')
+    parser.add_argument('-bin', '--save_model_path', type=str, default='bin')
+
+    args_idea5 = parser.parse_args()
+
+    args_idea5.rnn_type = args_idea5.rnn_type.lower()
+    args_idea5.anneal_function = args_idea5.anneal_function.lower()
+
+    assert args_idea5.rnn_type in ['rnn', 'lstm', 'gru']
+    assert args_idea5.anneal_function in ['logistic', 'linear']
+    assert 0 <= args_idea5.word_dropout <= 1
+    from utils import expierment_name
+    from convlab2.policy.mle.idea5.model_dialogue import dialogue_VAE
     main(args_idea5)

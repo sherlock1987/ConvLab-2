@@ -24,9 +24,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class PPO(Policy):
-
     def __init__(self, is_train=False, dataset='Multiwoz'):
-
         with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json'), 'r') as f:
             cfg = json.load(f)
         self.save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), cfg['save_dir'])
@@ -189,8 +187,7 @@ class PPO(Policy):
         :param a: action, Tensor, [b,209]
         """
         # reward_predict = self.reward_predictor_idea5.get_reward(r, s, a, mask)
-        with torch.no_grad():
-            reward_predict = self.reward_predictor_idea5.get_reward(r, s, a, mask, globa_bool = False)
+        reward_predict = self.reward_predictor_idea5.get_reward(r, s, a, mask, globa_bool = True, global_type = "mask")
         reward_predict = tensor(reward_predict)
         return reward_predict
 

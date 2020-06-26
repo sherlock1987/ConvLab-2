@@ -158,7 +158,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("--load_path", type=str, default="", help="path of model to load")
     parser.add_argument("--load_path_reward", default="", help="path of model to load from reward machine")
-    parser.add_argument("--batchsz", type=int, default=1024, help="batch size of trajactory sampling")
+    parser.add_argument("--batchsz", type=int, default=512, help="batch size of trajactory sampling")
     parser.add_argument("--epoch", type=int, default=30 , help="number of epochs to train")
     parser.add_argument("--process_num", type=int, default=3, help="number of processes of trajactory sampling")
     args = parser.parse_args()

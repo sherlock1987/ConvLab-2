@@ -13,7 +13,7 @@ from convlab2.policy.vector.vector_multiwoz import MultiWozVector
 from convlab2.util.file_util import cached_path
 import zipfile
 import sys
-from convlab2.policy.mle.idea5.model_dialogue import dialogue_VAE
+from convlab2.policy.mle.idea7_test_domain_loacal_global.model_dialogue import dialogue_VAE
 from convlab2.policy.mle.idea2_predict_next_action import Reward_predict
 
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -186,8 +186,9 @@ class PPO(Policy):
         :param s: state, Tensor, [b,340]
         :param a: action, Tensor, [b,209]
         """
-        # reward_predict = self.reward_predictor_idea5.get_reward(r, s, a, mask)
-        reward_predict = self.reward_predictor_idea5.get_reward(r, s, a, mask, globa_bool = True, global_type = "mask")
+        reward_predict = self.reward_predictor_idea5.get_reward(r, s, a, mask)
+        # reward_predict = self.reward_predictor_idea5.get_reward_global(r, s, a, mask, globa_bool = True, global_type = "mask")
+        # reward_predict = self.reward_predictor_idea5.get_reward_global(r, s, a, mask, global_type = "mask")
         reward_predict = tensor(reward_predict)
         return reward_predict
 

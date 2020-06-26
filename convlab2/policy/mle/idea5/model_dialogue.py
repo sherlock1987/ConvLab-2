@@ -268,7 +268,7 @@ class dialogue_VAE(nn.Module):
         input_sequence = output.clone()[sorted_idx]
         return pad_input_tensor, input_sequence, sorted_lengths, sorted_idx
 
-    def compress(self,input):
+    def compress(self, input):
 
         input = self.linear2(self.relu(self.linear1(input.to("cuda"))))
 

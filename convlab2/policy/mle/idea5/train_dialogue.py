@@ -245,7 +245,7 @@ def main(args):
                 print("Model saved at %s"%checkpoint_path)
 
     save_path = "./bin/"
-    torch.save(model.state_dict(), save_path + "idea6_domain.pol.mdl")
+    torch.save(model.state_dict(), save_path + "idea7_domain_tiny_data.pol.mdl")
 
 
 if __name__ == '__main__':

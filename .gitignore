@@ -3,6 +3,9 @@ __pycache__
 
 .DS_Store
 
+# model
+*/bin/*
+
 # pycharm
 .idea
 

@@ -172,13 +172,37 @@ class dialogue_VAE(nn.Module):
             max_len = max(max_len, cur_len)
         return max_len
 
+    def data_mask(self, input):
+        """
+        :param input: [ , , ] one tensor
+        :return: list of tensors, and it should mask the action, list_len = len([ , , ])
+        """
+        dia_len = input.size(1)
+        input_tensor = input.clone()
+        domain_list = []
+        mask_input_tensor = []
+        mask_id = []
+        zero = torch.zeros(size = [209])
+
+        for i in range(dia_len):
+            action = input_tensor[0][i][340:549]
+            one = input_tensor.clone()
+            one[0][i][340:549] = zero
+            mask_input_tensor.append(one)
+            mask_id.append(i)
+            domain_list.append(self.domain_classifier(action))
+
+        return mask_input_tensor, mask_id, domain_list
+
     def forward(self, input_sequence, mask_id):
         """
+        First mask the input_sequence, in train.py.
         data.size(1) >= 2
         :param input_sequence: list of tensors
         :param mask_id:
         :return: loss_1(RC), loss_2(disc)
         """
+        # 不是得先mask，然后再放到RNN里面吗
         batch_size = len(input_sequence)
 
         max_len = self.get_max_len(input_sequence)
@@ -435,8 +459,8 @@ class dialogue_VAE(nn.Module):
             if int(mask[i]) == 0:
                 # for the last one, the reward should follow the system. 5, 40, -1, that's it.
                 last_reward = r[i].item()
-                global_score = self.get_score_global(input, global_type= globa_type)
-                global_score.append(last_reward)
+                global_score = self.get_score_domain(input)
+                global_score[-1] += last_reward
                 # add global score
                 s_temp = torch.tensor([])
                 a_temp = torch.tensor([])
@@ -451,44 +475,22 @@ class dialogue_VAE(nn.Module):
     # sub func for reward computation
     def get_score_domain(self, input):
         """
-        Get current dialogue score for the domain.
-        This is a sub_function
-        :param input: [ , , ]
-        :param gloabl: bool, true meaning to this stuff.
-        :param gloabl type: Hindsight, mask
-        :return: reward computation
+        :param input: one whole dialogue
+        :return: list of rewards
         """
-        output_action = self.get_last_action(input.clone())
-        input_rnn, bf = self.extract_prev_bf(input)
-        batch_size = input_rnn.shape[0]
-        # ENCODER
-        input_mask = self.linear2(self.relu(self.linear1(input_rnn.to("cuda"))))
-        _, hidden = self.encoder_rnn(input_mask)
+        len_dial = len(input[0])
+        mask_input_tensor, mask_id, domain_list = self.data_mask(input)
+        output = []
+        for i in range(len_dial):
+            input_linear = self.linear2(self.relu(self.linear1(mask_input_tensor[i].to("cuda"))))
+            whole_pack, hidden = self.encoder_rnn(input_linear)
+            input_hidden = whole_pack[0][mask_id[i]].unsqueeze(0).to("cuda")
+            disc_res = self.discriminator_layer7(self.relu(self.discriminator_layer6(self.relu(self.discriminator_layer5(self.relu(self.discriminator_layer4(torch.tensor(input_hidden))))))))
+            disc_res = self.sigmoid(disc_res)
+            score = torch.sum(torch.tensor(domain_list[i]).to("cuda") * disc_res)
+            output.append(score.item())
+        return output
 
-        if self.bidirectional or self.num_layers > 1:
-            # flatten hidden state
-            hidden = hidden.view(batch_size, self.hidden_size * self.hidden_factor)
-        else:
-            hidden = hidden.squeeze()
-
-        # # REPARAMETERIZATION
-        # # related to latent size, which is 16 (16/256)
-        # mean = self.hidden2mean(hidden)
-        # logv = self.hidden2logv(hidden)
-        # std = torch.exp(0.5 * logv)
-        #
-        # z = to_var(torch.randn([batch_size, self.latent_size]))
-        # # z = z * std + mean
-        # # DECODER latent to real hidden states
-        # hidden = self.latent2hidden(z)
-
-        # discriminate
-        hidden_bf = torch.cat((hidden, bf), 1)
-        disc_res = self.discriminator_layer3(self.relu(self.discriminator_layer2(self.relu(self.discriminator_layer1(hidden_bf)))))
-        action_domain = self.domain_classifier(output_action)
-        prob = self.sigmoid(disc_res)
-        score = torch.sum(torch.tensor(action_domain).to("cuda") * prob.squeeze(0))
-        return score
     # sub func for reward computation
     def get_score_fake(self, input):
         """

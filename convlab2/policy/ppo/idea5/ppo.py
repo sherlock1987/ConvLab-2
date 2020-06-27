@@ -186,7 +186,7 @@ class PPO(Policy):
         :param s: state, Tensor, [b,340]
         :param a: action, Tensor, [b,209]
         """
-        reward_predict = self.reward_predictor_idea5.get_reward(r, s, a, mask)
+        reward_predict = self.reward_predictor_idea5.get_reward_global(r, s, a, mask)
         # reward_predict = self.reward_predictor_idea5.get_reward_global(r, s, a, mask, globa_bool = True, global_type = "mask")
         # reward_predict = self.reward_predictor_idea5.get_reward_global(r, s, a, mask, global_type = "mask")
         reward_predict = tensor(reward_predict)

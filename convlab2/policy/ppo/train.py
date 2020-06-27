@@ -201,7 +201,7 @@ then run the code, remember you have to check if there is two models loaded, one
 
 add reward model for idea5
 1. Modify the args path
---load_path /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle --load_path_reward /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/idea7_test_domain_loacal_global/idea7_domain_tiny_data.pol.mdl
+--load_path /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle --load_path_reward /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/idea7/idea7_domain_tiny_data.pol.mdl
 2. Modify ppo update func
 3. Modify the import idea7
 3. Untill you see that it could load two models

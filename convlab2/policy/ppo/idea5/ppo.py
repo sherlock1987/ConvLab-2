@@ -13,7 +13,7 @@ from convlab2.policy.vector.vector_multiwoz import MultiWozVector
 from convlab2.util.file_util import cached_path
 import zipfile
 import sys
-from convlab2.policy.mle.idea7_test_domain_loacal_global.model_dialogue import dialogue_VAE
+from convlab2.policy.mle.idea7.model_dialogue import dialogue_VAE
 from convlab2.policy.mle.idea2_predict_next_action import Reward_predict
 
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))

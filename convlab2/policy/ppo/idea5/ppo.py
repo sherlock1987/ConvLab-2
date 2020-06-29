@@ -327,20 +327,6 @@ class PPO(Policy):
                 logging.info('<<dialog policy>> loaded reward model checkpoint from file: {}'.format(policy_mdl))
                 break
 
-    def load_reward_model_idea3(self, filename):
-        policy_mdl_candidates = [
-            filename,
-            filename + '.pol.mdl',
-            filename + '_pg.pol.mdl',
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), filename),
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), filename + '.pol.mdl'),
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), filename + '_pg.pol.mdl')
-        ]
-        for policy_mdl in policy_mdl_candidates:
-            if os.path.exists(policy_mdl):
-                self.reward_idea3.load_state_dict(torch.load(policy_mdl, map_location=DEVICE))
-                logging.info('<<dialog policy>> loaded reward_idea3 model checkpoint from file: {}'.format(policy_mdl))
-                break
 
     def load_reward_model_idea5(self, filename):
         policy_mdl_candidates = [

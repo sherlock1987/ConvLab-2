@@ -11,8 +11,7 @@ from convlab2.policy.mle.idea9.model_dialogue import dialogue_VAE, data_mask
 from convlab2.policy.mle.idea9.utils import expierment_name
 import torch.nn.functional as F
 
-
-
+root_path = os.path.join(os.path.dirname(__file__), os.pardir)
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # define the loss function, model_dialogue could also use that.
@@ -34,7 +33,7 @@ def main(args):
     # splits = ["test"]
     datasets_real = OrderedDict()
     for split in splits:
-        with open(os.path.join("/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/multiwoz/processed_data",
+        with open(os.path.join("/home/raliegh/图片/ConvLab-2/convlab2/policy/mle/processed_data",
                                'sa_{}.pkl'.format(split)), 'rb') as f:
             datasets_real[split] = pickle.load(f)
 

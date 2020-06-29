@@ -257,7 +257,7 @@ def evaluate(dataset_name, model_name, load_path, calculate_reward=True):
 
 
 # this is my code of changing
-def evaluate_test(dataset_name, model_name, load_path, calculate_reward=True):
+def evaluate_test(dataset_name, model_name, load_path, seed_total = 100, calculate_reward=True):
     """
     :param dataset_name:
     :param model_name:
@@ -315,7 +315,7 @@ def evaluate_test(dataset_name, model_name, load_path, calculate_reward=True):
         sess = BiSession(agent_sys, simulator, None, evaluator)
 
         task_success = {'All': []}
-        for seed in range(100):
+        for seed in range(seed_total):
             random.seed(seed)
             np.random.seed(seed)
             torch.manual_seed(seed)
@@ -447,6 +447,7 @@ if __name__ == "__main__":
                 dataset_name=args.dataset_name,
                 model_name=args.model_name,
                 load_path=model_dir,
+                seed_total= 1000,
                 calculate_reward=False
             )
             success_rate = np.mean(result["All"])
@@ -499,9 +500,12 @@ if __name__ == "__main__":
 # [0.59, 0.64, 0.7, 0.72, 0.74, 0.76, 0.75, 0.74, 0.77, 0.73, 0.73, 0.71, 0.76, 0.74, 0.75, 0.77, 0.78, 0.73, 0.73, 0.76, 0.73, 0.76, 0.75, 0.75, 0.77, 0.76, 0.68, 0.75, 0.69, 0.67]
 # MLE + idea7 (global domain classify) with less data and using whole graph.
 # [0.6, 0.6, 0.62, 0.65, 0.64, 0.65, 0.64, 0.69, 0.71, 0.72, 0.7, 0.72, 0.74, 0.69, 0.67, 0.7, 0.72, 0.73, 0.7, 0.67, 0.69, 0.65, 0.69, 0.71, 0.69, 0.68, 0.67, 0.63, 0.69, 0.65]
+# MLE + idea7 (global domain classify) with less data and using whole graph.Same with 1000 seed.
+# [0.62, 0.627, 0.655, 0.656, 0.664, 0.674, 0.676, 0.684, 0.695, 0.703, 0.7, 0.726, 0.726, 0.715, 0.697, 0.723, 0.73, 0.736, 0.731, 0.707, 0.716, 0.693, 0.713, 0.711, 0.712, 0.711, 0.703, 0.697, 0.712, 0.717]
 
 # MLE + idea6(local domain + global(mask)) better than only local.
 # [0.59, 0.67, 0.66, 0.69, 0.72, 0.73, 0.71, 0.71, 0.73, 0.75, 0.72, 0.74, 0.7, 0.75, 0.72, 0.72, 0.7, 0.73, 0.73, 0.73, 0.73, 0.73, 0.72, 0.73, 0.72, 0.73, 0.74, 0.74, 0.75, 0.75]
+
 # MLE + idea6(local domain + global(mask))+updating
 # [0.57, 0.63, 0.67, 0.72, 0.75, 0.74, 0.74, 0.76, 0.77, 0.78, 0.79, 0.77, 0.78, 0.78, 0.79, 0.76, 0.74, 0.74, 0.74, 0.76, 0.76, 0.79, 0.78, 0.73, 0.75, 0.78, 0.75, 0.7, 0.73, 0.73]
 # MLE + reward drop significantly 预测的不对,基本上很难有所帮助的
@@ -533,3 +537,6 @@ Then run, remember to see model load successfully in logs.
 # [0.55, 0.62, 0.63, 0.66, 0.67, 0.68, 0.71, 0.7, 0.73, 0.73, 0.76, 0.75, 0.76, 0.75, 0.76, 0.78, 0.76, 0.74, 0.75, 0.74, 0.75, 0.75, 0.71, 0.73, 0.7, 0.73, 0.73, 0.73, 0.75, 0.74]
 # data + global(less data) we should use less data
 # [0.6, 0.6, 0.62, 0.59, 0.62, 0.69, 0.67, 0.69, 0.7, 0.69, 0.72, 0.75, 0.78, 0.75, 0.76, 0.74, 0.73, 0.76, 0.76, 0.78, 0.78, 0.75, 0.78, 0.78, 0.77, 0.76, 0.77, 0.77, 0.75, 0.78]
+
+# with another model
+# [0.56, 0.61, 0.63, 0.68, 0.67, 0.68, 0.66, 0.72, 0.71, 0.76, 0.76, 0.79, 0.77, 0.8, 0.78, 0.75, 0.73, 0.74, 0.75, 0.72, 0.74, 0.73, 0.69, 0.7, 0.72, 0.74, 0.72, 0.7, 0.72, 0.73]

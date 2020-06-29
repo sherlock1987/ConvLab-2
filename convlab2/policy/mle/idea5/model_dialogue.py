@@ -291,7 +291,7 @@ class dialogue_VAE(nn.Module):
 
         return mean, logv, distribution, std
 
-    def get_reward(self, r, s, a, mask,  globa_bool = False, global_type = "mask"):
+    def get_reward(self, r, s, a, mask,  global_bool = False, global_type = "mask"):
         """
         :param r: reward, Tensor, [b]
         :param mask: indicates ending for 0 otherwise 1, Tensor, [b]
@@ -326,7 +326,7 @@ class dialogue_VAE(nn.Module):
                 # for the last one, the reward should follow the system. 5, 40, -1, that's it.
                 last_reward = r[i].item()
                 reward_collc.append(last_reward)
-                if globa_bool:
+                if global_bool:
                     global_score = self.get_score_global(input, global_type = global_type)
                     global_score.append(0)
                     # add global score

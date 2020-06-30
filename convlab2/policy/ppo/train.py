@@ -14,7 +14,7 @@ from convlab2.nlu.svm.multiwoz import SVMNLU
 from convlab2.dst.rule.multiwoz import RuleDST
 from convlab2.policy.rule.multiwoz import RulePolicy
 # from convlab2.policy.ppo import PPO
-from convlab2.policy.ppo.idea5.ppo import PPO
+from convlab2.policy.ppo.idea.ppo import PPO
 from convlab2.policy.rlmodule import Memory, Transition
 from convlab2.nlg.template.multiwoz import TemplateNLG
 from convlab2.evaluator.multiwoz_eval import MultiWozEvaluator
@@ -158,7 +158,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("--load_path", type=str, default="", help="path of model to load")
     parser.add_argument("--load_path_reward", default="", help="path of model to load from reward machine")
-    parser.add_argument("--batchsz", type=int, default=512, help="batch size of trajactory sampling")
+    parser.add_argument("--batchsz", type=int, default=1024, help="batch size of trajactory sampling")
     parser.add_argument("--epoch", type=int, default=30 , help="number of epochs to train")
     parser.add_argument("--process_num", type=int, default=3, help="number of processes of trajactory sampling")
     args = parser.parse_args()
@@ -171,8 +171,10 @@ if __name__ == '__main__':
     # policy_sys.load('/home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle')
     #policy_sys.load_reward_model('/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/idea5/bin/idea5.pol.mdl')
     # policy_sys.load_reward_model_idea3(args.load_path_reward)
-    policy_sys.load(args.load_path)
-    policy_sys.load_reward_model_idea5(args.load_path_reward)
+    policy_sys.load("/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/multiwoz/best_mle")
+    policy_sys.load_reward_model1("/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/idea8/bin/E9.pytorch")
+    policy_sys.load_reward_model2("/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/idea9/bin/idea9.pol.mdl")
+
 
     # not use dst
     dst_usr = None

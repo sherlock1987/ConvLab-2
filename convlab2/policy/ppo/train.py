@@ -13,11 +13,13 @@ from convlab2.dialog_agent.env import Environment
 from convlab2.nlu.svm.multiwoz import SVMNLU
 from convlab2.dst.rule.multiwoz import RuleDST
 from convlab2.policy.rule.multiwoz import RulePolicy
-from convlab2.policy.ppo import PPO
+# from convlab2.policy.ppo import PPO
+from convlab2.policy.ppo.idea.ppo import PPO
 from convlab2.policy.rlmodule import Memory, Transition
 from convlab2.nlg.template.multiwoz import TemplateNLG
 from convlab2.evaluator.multiwoz_eval import MultiWozEvaluator
 from argparse import ArgumentParser
+import random
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -25,6 +27,16 @@ try:
     mp = mp.get_context('spawn')
 except RuntimeError:
     pass
+
+seed = 999
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+np.random.seed(seed)  # Numpy module.
+random.seed(seed)  # Python random module.
+torch.manual_seed(seed)
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
 
 def sampler(pid, queue, evt, env, policy, batchsz):
     """
@@ -157,17 +169,29 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("--load_path", type=str, default="", help="path of model to load")
     parser.add_argument("--load_path_reward", default="", help="path of model to load from reward machine")
-    parser.add_argument("--batchsz", type=int, default=512, help="batch size of trajactory sampling")
-    parser.add_argument("--epoch", type=int, default=20, help="number of epochs to train")
-    parser.add_argument("--process_num", type=int, default=4, help="number of processes of trajactory sampling")
+    parser.add_argument("--batchsz", type=int, default=1024, help="batch size of trajactory sampling")
+    parser.add_argument("--epoch", type=int, default=30 , help="number of epochs to train")
+    parser.add_argument("--process_num", type=int, default=3, help="number of processes of trajactory sampling")
+    parser.add_argument("--ae_weight", type=float, default=1.)
+    parser.add_argument("--domain_weight", type=float, default=1.)
+    parser.add_argument("--bias", type=int, default=0)
+    parser.add_argument("--r_weight", type=int, default=1)
+    parser.add_argument("--update_ae", type=bool, default=True)
+    parser.add_argument("--update_domain", type=bool, default=True)
+
     args = parser.parse_args()
 
     # simple rule DST
     dst_sys = RuleDST()
 
-    policy_sys = PPO(True)
-    policy_sys.load(args.load_path)
-    policy_sys.load_reward_model(args.load_path_reward)
+    policy_sys = PPO(args, seed, is_train = True)
+    # policy_sys.load('/home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle')
+    # policy_sys.load_reward_model('/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/idea5/bin/idea5.pol.mdl')
+    # policy_sys.load_reward_model_idea3(args.load_path_reward)
+
+    policy_sys.load("/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/multiwoz/best_mle")
+    policy_sys.load_reward_model1("/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/idea8/bin/E9.pytorch")
+    policy_sys.load_reward_model2("/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/idea9/bin/idea9.pol.mdl")
 
     # not use dst
     dst_usr = None
@@ -181,3 +205,24 @@ if __name__ == '__main__':
 
     for i in range(args.epoch):
         update(env, policy_sys, args.batchsz, i, args.process_num)
+
+"""
+How to add idea_x?
+args:
+--load_path /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle --load_path_reward /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/save/idea1_model/idea_3_descriminator.mdl
+idea5 model
+--load_path /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle --load_path_reward /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/idea5/idea5.pol.mdl
+
+then add init stuff in ppo.init
+then add reward function in ppo, implement it in ppo.upgrade. # A_sa, v_target = self.est_adv(r, v, mask)
+then add function of load model in ppo, implement it in ppo/train.py, modify args of load_reward_model
+then run the code, remember you have to check if there is two models loaded, one is mle, one is reward model.
+
+add reward model for idea5
+1. Modify the args path
+--load_path /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle --load_path_reward /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/idea7/idea7_domain_tiny_data.pol.mdl
+2. Modify ppo update func
+3. Modify the import idea7
+3. Untill you see that it could load two models
+"""
+

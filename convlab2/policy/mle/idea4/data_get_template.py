@@ -30,6 +30,35 @@ torch.manual_seed(RANDOM_SEED)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 save_path = "/home/raliegh/图片/ConvLab-2/convlab2/policy/mle/processed_data/"
 
+collections = set()
+
+def domain_classifier(action):
+    """
+    :param action:
+    :return:[ one hot encoder ]
+    """
+    domain = [0] * 9
+    for i in range(action.shape[0]):
+        if action[i].item() == 1.:
+            if 0 <= i <= 39:
+                domain[0] = 1
+            elif 40 <= i <= 58:
+                domain[8] = 1
+            elif 59 <= i <= 63:
+                domain[1] = 1
+            elif 64 <= i <= 110:
+                domain[2] = 1
+            elif 111 <= i <= 114:
+                domain[3] = 1
+            elif 115 <= i <= 109:
+                domain[4] = 1
+            elif 110 <= i <= 160:
+                domain[5] = 1
+            elif 170 <= i <= 204:
+                domain[6] = 1
+            elif 205 <= i <= 208:
+                domain[7] = 1
+    return domain
 
 def get_data(part_which):
     """
@@ -60,9 +89,11 @@ def get_data(part_which):
 
     # make some batch
     # [[ 1, 5, 549],]
+    total_turns = 0
     data_list = []
     assert (len(data_whole) == len(terminate[part_which]))
-    print("this data contains about {} turns in toral".format(len(data_whole)))
+    assert (len(data_whole) == len(state_whole[part_which]))
+    print("this data contains about {} turns in total".format(len(data_whole)))
     for i, data in enumerate(data_whole):
         s, a = to_device(data)
         try:
@@ -74,18 +105,25 @@ def get_data(part_which):
         # [ , , ]
         s_train = s_temp.unsqueeze(0)
         a_train = a_temp.unsqueeze(0)
-        if len(s_train[0]) >= 2:
-            input_real = torch.cat((s_train, a_train), 2)
-            flag = terminate[part_which][i]
 
-            if flag == False:
-                pass
-            else:
-                data_list.append(input_real)
-                s_temp = torch.tensor([])
-                a_temp = torch.tensor([])
-                input_real = torch.tensor([])
+        domain = domain_classifier(a.squeeze(0))
+        collections.add(str(domain))
+
+        input_real = torch.cat((s_train, a_train), 2)
+        flag = terminate[part_which][i]
+
+        if flag == False:
+            pass
+        else:
+            data_list.append(input_real)
+            total_turns += input_real.size(1)
+            s_temp = torch.tensor([])
+            a_temp = torch.tensor([])
+            input_real = torch.tensor([])
+
     input[part_which] = data_list
+    # check if the lengh is same.
+    assert total_turns == len(data_whole)
     pickle.dump(input, open(os.path.join(save_path, 'sa_{}.pkl'.format(part_which)), 'wb'))
 
 def get_elementwise_data(part_which):
@@ -240,7 +278,10 @@ def load_data(part_which):
     return data_list[part_which], state_whole[part_which], terminate[part_which]
 
 # how to use?
-# get_data(part_which="test")
+get_data(part_which="train")
+get_data(part_which="val")
+get_data(part_which="test")
+print(collections)
 # data_list, state_whole, terminate = load_data(part_which="train")
 # get_elementwise_fake("train")
 # get_elementwise_fake("val")

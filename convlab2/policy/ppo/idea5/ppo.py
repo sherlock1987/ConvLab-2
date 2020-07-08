@@ -13,7 +13,7 @@ from convlab2.policy.vector.vector_multiwoz import MultiWozVector
 from convlab2.util.file_util import cached_path
 import zipfile
 import sys
-from convlab2.policy.mle.idea5.model_dialogue import dialogue_VAE
+from convlab2.policy.mle.idea9.model_dialogue import dialogue_VAE
 from convlab2.policy.mle.idea2_predict_next_action import Reward_predict
 
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -22,6 +22,8 @@ sys.path.append(root_dir)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+torch.manual_seed(0)
+np.random.seed(0)
 
 class PPO(Policy):
     def __init__(self, is_train=False, dataset='Multiwoz'):
@@ -53,16 +55,7 @@ class PPO(Policy):
         self.reward_predictor = Reward_predict(549, 457, 209)
 
         self.reward_predictor_idea5 = dialogue_VAE(
-            max_sequence_length= 60,
-            embedding_size=549,
-            rnn_type="gru",
-            hidden_size=512,
-            word_dropout=1,
-            embedding_dropout=1,
-            latent_size=256,
-            num_layers=1,
-            bidirectional=True
-        )
+            input_size= 549        )
 
     def predict(self, state):
         """
@@ -186,7 +179,7 @@ class PPO(Policy):
         :param s: state, Tensor, [b,340]
         :param a: action, Tensor, [b,209]
         """
-        reward_predict = self.reward_predictor_idea5.get_reward(r, s, a, mask, global_bool = True)
+        reward_predict = self.reward_predictor_idea5.get_reward(r, s, a, mask)
         # reward_predict = self.reward_predictor_idea5.get_reward_global(r, s, a, mask, globa_bool = True, global_type = "mask")
         # reward_predict = self.reward_predictor_idea5.get_reward_global(r, s, a, mask, global_type = "mask")
         reward_predict = tensor(reward_predict)
@@ -202,7 +195,7 @@ class PPO(Policy):
         # estimate advantage and v_target according to GAE and Bellman Equation
         # leave the V alone, just forget about it.
         # r = self.reward_estimate(r, s, a, mask)
-        r = self.reward_estimate_idea5(r,s,a,mask)
+        # r = self.reward_estimate_idea5(r,s,a,mask)
         A_sa, v_target = self.est_adv(r, v, mask)
 
         for i in range(self.update_round):

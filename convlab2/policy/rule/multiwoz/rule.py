@@ -6,7 +6,8 @@ from convlab2.policy.rule.multiwoz.policy_agenda_multiwoz import UserPolicyAgend
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
+torch.manual_seed(0)
+# np.random.seed(0)
 class RulePolicy(Policy):
 
     def __init__(self, is_train=False, character='sys'):

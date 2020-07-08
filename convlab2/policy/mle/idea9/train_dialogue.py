@@ -22,7 +22,7 @@ def main(args):
     # splits = ["test"]
     datasets_real = OrderedDict()
     for split in splits:
-        with open(os.path.join("/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/multiwoz/processed_data",
+        with open(os.path.join("/home/raliegh/图片/ConvLab-2/convlab2/policy/mle/processed_data",
                                'sa_{}.pkl'.format(split)), 'rb') as f:
             datasets_real[split] = pickle.load(f)
 
@@ -65,20 +65,30 @@ def main(args):
     batch_id = 0
     # data
     processed_data = {}
-    for split in splits:
-        data_loader_real = datasets_real[split][split]
-        data_collc = []
-        domain_collc = []
-        mask_id_collc = []
-        bf_collc = []
-        for i, batch in enumerate(data_loader_real):
-            one_1, one_2, one_3, one_4 = data_mask(batch)
-            data_collc += one_1
-            mask_id_collc += one_2
-            domain_collc += one_3
-            bf_collc += one_4
-        index = [i for i in range(len(domain_collc))]
-        processed_data[split] = (data_collc, domain_collc, mask_id_collc, bf_collc, index)
+    processed_dir = "/home/raliegh/图片/ConvLab-2/convlab2/policy/mle/processed_data"
+
+    for part in ['train', 'test']:
+        with open(os.path.join(processed_dir, 'mask_element_{}.pkl'.format(part)), 'rb') as f:
+            processed_data[part] = pickle.load(f)
+
+    # for split in splits:
+    #     data_loader_real = datasets_real[split][split]
+    #     data_collc = []
+    #     domain_collc = []
+    #     mask_id_collc = []
+    #     bf_collc = []
+    #     for i, batch in enumerate(data_loader_real):
+    #         one_1, one_2, one_3, one_4 = data_mask(batch)
+    #         data_collc += one_1
+    #         mask_id_collc += one_2
+    #         domain_collc += one_3
+    #         bf_collc += one_4
+    #     index = [i for i in range(len(domain_collc))]
+    #     processed_data[split] = (data_collc, domain_collc, mask_id_collc, bf_collc, index)
+    #
+    # # save file
+    #     with open(os.path.join(processed_dir, 'mask_element_{}_.pkl'.format(split)), 'wb') as f:
+    #         pickle.dump(processed_data[split], f)
 
     for epoch in range(args.epochs):
         for split in splits:
@@ -169,7 +179,7 @@ def main(args):
 
             # save checkpoint
             if split == 'train' and (epoch+1) % 5 == 0:
-                checkpoint_path = os.path.join(save_model_path, "E%i.pytorch"%(epoch))
+                checkpoint_path = os.path.join(save_model_path, "E%i.mdl"%(epoch))
                 torch.save(model.state_dict(), checkpoint_path)
                 print("Model saved at %s"%checkpoint_path)
 

@@ -241,9 +241,10 @@ class PPO(Policy):
             # 1. shuffle current batch
             perm = torch.randperm(batchsz)
             # shuffle the variable for mutliple optimize
-            v_target_shuf, A_sa_shuf, s_shuf, a_shuf, log_pi_old_sa_shuf = v_target[perm], A_sa[perm], s[perm], a[perm], \
-                                                                           log_pi_old_sa[perm]
-
+            # v_target_shuf, A_sa_shuf, s_shuf, a_shuf, log_pi_old_sa_shuf = v_target[perm], A_sa[perm], s[perm], a[perm], \
+            #                                                                log_pi_old_sa[perm]
+            v_target_shuf, A_sa_shuf, s_shuf, a_shuf, log_pi_old_sa_shuf = v_target, A_sa, s, a, \
+                                                                           log_pi_old_sa
             # 2. get mini-batch for optimizing
             optim_chunk_num = int(np.ceil(batchsz / self.optim_batchsz))
             # chunk the optim_batch for total batch

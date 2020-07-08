@@ -17,7 +17,7 @@ from convlab2.policy.mle.multiwoz.loader import ActMLEPolicyDataLoaderMultiWoz
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class RewardEstimator(object):
-    def __init__(self, vector, pretrain=False):
+    def __init__(self, vector, pretrain = False):
         with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json'), 'r') as f:
             cfg = json.load(f)
         self.irl = AIRL(cfg['gamma'], cfg['hi_dim'], vector.state_dim, vector.da_dim).to(device=DEVICE)

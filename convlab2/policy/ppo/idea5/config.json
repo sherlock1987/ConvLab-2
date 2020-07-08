@@ -5,7 +5,7 @@
 	"tau": 0.95,
 	"policy_lr": 0.0001,
 	"value_lr": 0.00005,
-	"save_dir": "save",
+	"save_dir": "save_mle_0",
 	"log_dir": "log",
 	"save_per_epoch": 1,
 	"update_round": 5,

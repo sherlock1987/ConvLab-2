@@ -2,15 +2,14 @@ import torch
 import torch.nn as nn
 import torch.nn.utils.rnn as rnn_utils
 from utils import to_var
-
+import copy
 class dialogue_VAE(nn.Module):
     def __init__(self, embedding_size, rnn_type, hidden_size, word_dropout, embedding_dropout, latent_size,
-                max_sequence_length, num_layers=1, bidirectional=False):
+                 num_layers=1, bidirectional=False):
 
         super().__init__()
         self.tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
 
-        self.max_sequence_length = max_sequence_length
         self.latent_size = latent_size
 
         self.rnn_type = rnn_type
@@ -46,15 +45,29 @@ class dialogue_VAE(nn.Module):
         self.output_layer = nn.Linear(hidden_size * (2 if bidirectional else 1), embedding_size)
         self.sigmoid = nn.Sigmoid()
         self.relu = nn.ReLU()
-
-    def forward(self, input_sequence, max_len):
+    # computation func.
+    def get_max_len(self, input_seq):
         """
-        :param input_sequence:
+        :param input_seq: [ ,  , ]
+        :return: int
+        """
+        max_len = 0
+        process = copy.deepcopy(input_seq)
+        for i in range(len(process)):
+            cur_len = process[i].size(1)
+            max_len = max(max_len, cur_len)
+        return max_len
+
+    def forward(self, input_sequence):
+        """
+        :param input_sequence: list of tensors
         :param length:
         :return:
         """
         # order
         batch_size = len(input_sequence)
+        max_len = self.get_max_len(input_sequence)
+
         # ENCODER
         # pack stuff and unpack stuff later.
         original_input_tensor, padded_input_sequence, sorted_lengths, sorted_idx = self.pad(input_sequence, max_len)

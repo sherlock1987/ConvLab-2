@@ -68,12 +68,11 @@ def domain_classifier(action):
     return domain
 
 class dialogue_VAE(nn.Module):
-
     def __init__(self, input_size = 549, hidden_size = 256, output_size = 9):
         super(dialogue_VAE, self).__init__()
         self.encoder_1 = nn.GRU(hidden_size, hidden_size, batch_first=True)
-        self.linear_belief = nn.Linear(340,hidden_size)
-        self.linear_output1 = nn.Linear(hidden_size*2,hidden_size)
+        self.linear_belief = nn.Linear(340, hidden_size)
+        self.linear_output1 = nn.Linear(hidden_size*2, hidden_size)
         self.linear_output2 = nn.Linear(hidden_size, 64)
         self.linear_output3 = nn.Linear(64, output_size)
         self.linear1 = nn.Linear(input_size, hidden_size)
@@ -85,7 +84,7 @@ class dialogue_VAE(nn.Module):
         max_len = self.get_max_len(input_feature)
         original_input_tensor, padded_input_sequence, sorted_lengths, sorted_idx = self.concatenate_zero(input_feature, max_len)
         padded_input_sequence = self.linear2(F.relu(self.linear1(padded_input_sequence.to(self.device))))
-        packed_input = rnn_utils.pack_padded_sequence(padded_input_sequence, sorted_lengths.data.tolist(),batch_first=True)
+        packed_input = rnn_utils.pack_padded_sequence(padded_input_sequence, sorted_lengths.data.tolist(), batch_first=True)
 
         _, last_h = self.encoder_1(packed_input)
         last_h = last_h.squeeze(0)
@@ -94,7 +93,7 @@ class dialogue_VAE(nn.Module):
 
         input_belief = self.linear_belief(input_belief)
 
-        output = torch.cat((last_h,input_belief),dim=1)
+        output = torch.cat((last_h, input_belief),dim=1)
         output = self.linear_output3(F.relu(self.linear_output2(F.relu(self.linear_output1(output)))))
 
         return output
@@ -144,6 +143,7 @@ class dialogue_VAE(nn.Module):
                 data_collc[last_reward].append(input)
                 data_reward_collc[sum(reward_collc)].append(reward_collc)
 
+                bell_man = self.bellman_equ(reward_collc)
                 reward_predict += reward_collc
                 # clear
                 s_temp = torch.tensor([])
@@ -161,9 +161,55 @@ class dialogue_VAE(nn.Module):
 
         reward_predict = torch.tensor(reward_predict)
 
+
         # update the reward model first.
         self.update(data_collc, 16, 32)
         return reward_predict
+
+    def sign(self, r):
+        """
+        :param r: list
+        :return: output: list
+        """
+        output = []
+        for ele in r:
+            if ele >=0:
+                output.append(1)
+            else:
+                output.append(-1)
+        return output
+
+    def bellman_equ(self, r):
+        """
+        :param input: list
+        :return: output: list
+        """
+        len_dia = len(r)
+
+        v_target = [0]*len_dia
+
+        mask = [1] * (len_dia - 1)
+        mask.append(0)
+        self.gamma = 0.99
+        prev_v_target = 0
+        for t in reversed(range(len_dia)):
+            # mask here indicates a end of trajectory
+            # this value will be treated as the target value of value network.
+            # mask = 0 means the immediate reward is the real V(s) since it's end of trajectory.
+            # formula: V(s_t) = r_t + gamma * V(s_t+1)
+            v_target[t] = r[t] + self.gamma * prev_v_target * mask[t]
+
+            # please refer to : https://arxiv.org/abs/1506.02438
+            # for generalized adavantage estimation
+            # formula: delta(s_t) = r_t + gamma * V(s_t+1) - V(s_t)
+
+            # formula: A(s, a) = delta(s_t) + gamma * lamda * A(s_t+1, a_t+1)
+            # here use symbol tau as lambda, but original paper uses symbol lambda.
+
+            # update previous
+            prev_v_target = v_target[t]
+        # normalize A_sa
+        return  v_target
 
     def get_score_domain(self, input):
         """
@@ -171,12 +217,16 @@ class dialogue_VAE(nn.Module):
         :return: list of rewards
         """
         mask_input_tensor, mask_id, domain_list, input_belief = data_mask(input)
-        r = self.forward(mask_input_tensor,torch.stack(input_belief).to("cuda"))
+        r = self.forward(mask_input_tensor, torch.stack(input_belief).to("cuda"))
         #r = (r>0.5).float()
         #reward = 0.5 - torch.sum(torch.abs(r - torch.tensor(domain_list).float().to("cuda")),1)
-        reward = torch.sum(F.sigmoid(r).cpu() * torch.tensor(domain_list).float(),1)
+        middle = F.sigmoid(r)
+        reward = torch.sum(F.sigmoid(r).cpu() * torch.tensor(domain_list).float(),1) - 0.5
         reward = reward.tolist()
         reward.insert(0, 0)
+        for i in range(len(reward)):
+            reward[i] -= 1
+        # reward = self.sign(reward)
         return reward
 
     def update(self, input, num_dia, bs):
@@ -253,6 +303,7 @@ class dialogue_VAE(nn.Module):
         :param max_len:
         :return:pad input, pad_input_sort, sorted_length, sorted_idx
         """
+        # fine-tuning
         output = torch.zeros(size = (len(input), max_len, 549))
 
         len_list = []

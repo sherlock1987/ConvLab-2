@@ -3,6 +3,7 @@
 Created on Sun Jul 14 16:14:07 2019
 @author: truthless
 """
+
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import numpy as np
@@ -14,12 +15,12 @@ from convlab2.nlu.svm.multiwoz import SVMNLU
 from convlab2.dst.rule.multiwoz import RuleDST
 from convlab2.policy.rule.multiwoz import RulePolicy
 # from convlab2.policy.ppo import PPO
-from convlab2.policy.ppo.idea.ppo import PPO
+from convlab2.policy.ppo.idea5.ppo import PPO
 from convlab2.policy.rlmodule import Memory, Transition
 from convlab2.nlg.template.multiwoz import TemplateNLG
 from convlab2.evaluator.multiwoz_eval import MultiWozEvaluator
 from argparse import ArgumentParser
-
+import random
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 try:
@@ -154,40 +155,50 @@ def update(env, policy, batchsz, epoch, process_num):
     policy.update(epoch, batchsz_real, s, a, r, mask)
 
 
-if __name__ == '__main__':
-    parser = ArgumentParser()
-    parser.add_argument("--load_path", type=str, default="", help="path of model to load")
-    parser.add_argument("--load_path_reward", default="", help="path of model to load from reward machine")
-    parser.add_argument("--batchsz", type=int, default=1024, help="batch size of trajactory sampling")
-    parser.add_argument("--epoch", type=int, default=30 , help="number of epochs to train")
-    parser.add_argument("--process_num", type=int, default=3, help="number of processes of trajactory sampling")
-    args = parser.parse_args()
+seed_list = [1, 100, 200, 300, 400, 500, 600, 700]
+for i in range(len(seed_list)):
+    seed = seed_list[i]
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)  # Numpy module.
+    random.seed(seed)  # Python random module.
+    torch.manual_seed(seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
 
+    if __name__ == '__main__':
+        parser = ArgumentParser()
+        parser.add_argument("--load_path", type=str, default="", help="path of model to load")
+        parser.add_argument("--load_path_reward", default="", help="path of model to load from reward machine")
+        parser.add_argument("--batchsz", type=int, default=200, help="batch size of trajactory sampling")
+        parser.add_argument("--epoch", type=int, default=1 , help="number of epochs to train")
+        parser.add_argument("--process_num", type=int, default=3, help="number of processes of trajactory sampling")
 
-    # simple rule DST
-    dst_sys = RuleDST()
+        args = parser.parse_args()
 
-    policy_sys = PPO(True)
-    # policy_sys.load('/home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle')
-    #policy_sys.load_reward_model('/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/idea5/bin/idea5.pol.mdl')
-    # policy_sys.load_reward_model_idea3(args.load_path_reward)
-    policy_sys.load("/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/multiwoz/best_mle")
-    policy_sys.load_reward_model1("/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/idea8/bin/E9.pytorch")
-    policy_sys.load_reward_model2("/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/idea9/bin/idea9.pol.mdl")
+        # simple rule DST
+        dst_sys = RuleDST()
 
+        policy_sys = PPO(True)
+        # policy_sys.load('/home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle')
+        #policy_sys.load_reward_model('/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/idea5/bin/idea5.pol.mdl')
+        # policy_sys.load_reward_model_idea3(args.load_path_reward)
+        policy_sys.load(args.load_path)
+        policy_sys.load_reward_model_idea5(args.load_path_reward)
 
-    # not use dst
-    dst_usr = None
-    # rule policy
-    policy_usr = RulePolicy(character='usr')
-    # assemble
-    simulator = PipelineAgent(None, None, policy_usr, None, 'user')
+        # not use dst
+        dst_usr = None
+        # rule policy
+        policy_usr = RulePolicy(character='usr')
+        # assemble
+        simulator = PipelineAgent(None, None, policy_usr, None, 'user')
 
-    evaluator = MultiWozEvaluator()
-    env = Environment(None, simulator, None, dst_sys, evaluator)
+        evaluator = MultiWozEvaluator()
+        env = Environment(None, simulator, None, dst_sys)
 
-    for i in range(args.epoch):
-        update(env, policy_sys, args.batchsz, i, args.process_num)
+        for i in range(args.epoch):
+            update(env, policy_sys, args.batchsz, i, args.process_num)
 
 """
 How to add idea_x?

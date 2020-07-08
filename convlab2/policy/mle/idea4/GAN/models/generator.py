@@ -9,9 +9,8 @@
 import math
 import torch
 import torch.nn as nn
-
-import config as cfg
-from utils.helpers import truncated_normal_
+import convlab2.policy.mle.idea4.GAN.config as cfg
+from convlab2.policy.mle.idea4.GAN.utils.helpers import truncated_normal_
 
 
 class LSTMGenerator(nn.Module):

@@ -7,7 +7,7 @@
 # @Description  : 
 # Copyrights (C) 2018. All Rights Reserved.
 
-from models.generator import LSTMGenerator
+from convlab2.policy.mle.idea4.GAN.models.generator import LSTMGenerator
 
 
 class Oracle(LSTMGenerator):

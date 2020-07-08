@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.utils.rnn as rnn_utils
-from utils import to_var
+from convlab2.policy.mle.idea4.utils import to_var
 import copy
 class dialogue_VAE(nn.Module):
     def __init__(self, embedding_size, rnn_type, hidden_size, word_dropout, embedding_dropout, latent_size,
@@ -171,7 +171,7 @@ class dialogue_VAE(nn.Module):
         z = to_var(torch.randn([1, self.latent_size]))
         distribution = z * std + mean
 
-        return mean, logv, distribution, std
+        return hidden
 
     def compress_eval(self, input):
         """

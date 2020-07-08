@@ -1,18 +1,8 @@
-# -*- coding: utf-8 -*-
-# @Author       : William
-# @Project      : TextGAN-william
-# @FileName     : config.py
-# @Time         : Created at 2019-03-18
-# @Blog         : http://zhiweil.ml/
-# @Description  :
-# Copyrights (C) 2018. All Rights Reserved.
 from __future__ import print_function
-
 import argparse
-
-import config as cfg
-from utils.text_process import load_test_dict, text_process
-from seqgan_instructor import SeqGANInstructor
+import convlab2.policy.mle.idea4.GAN.config as cfg
+from convlab2.policy.mle.idea4.GAN.utils.text_process import load_test_dict, text_process
+from convlab2.policy.mle.idea4.GAN.seqgan_instructor import SeqGANInstructor
 
 def program_config(parser):
     # Program
@@ -31,15 +21,13 @@ def program_config(parser):
 
     # Basic Train
     parser.add_argument('--samples_num', default=cfg.samples_num, type=int)
-    parser.add_argument('--vocab_size', default=cfg.vocab_size, type=int)
     parser.add_argument('--mle_epoch', default=cfg.MLE_train_epoch, type=int)
+    # what meaning
     parser.add_argument('--clas_pre_epoch', default=cfg.PRE_clas_epoch, type=int)
     parser.add_argument('--adv_epoch', default=cfg.ADV_train_epoch, type=int)
     parser.add_argument('--inter_epoch', default=cfg.inter_epoch, type=int)
+
     parser.add_argument('--batch_size', default=cfg.batch_size, type=int)
-    parser.add_argument('--max_seq_len', default=cfg.max_seq_len, type=int)
-    parser.add_argument('--start_letter', default=cfg.start_letter, type=int)
-    parser.add_argument('--padding_idx', default=cfg.padding_idx, type=int)
     parser.add_argument('--gen_lr', default=cfg.gen_lr, type=float)
     parser.add_argument('--gen_adv_lr', default=cfg.gen_adv_lr, type=float)
     parser.add_argument('--dis_lr', default=cfg.dis_lr, type=float)
@@ -101,9 +89,9 @@ if __name__ == '__main__':
 
     print(opt)
 
-    if opt.if_real_data:
-        opt.max_seq_len, opt.vocab_size = text_process('dataset/' + opt.dataset + '.txt')
-        cfg.extend_vocab_size = len(load_test_dict(opt.dataset)[0])  # init classifier vocab_size
+    # if opt.if_real_data:
+    #     opt.max_seq_len, opt.vocab_size = text_process('dataset/' + opt.dataset + '.txt')
+    #     cfg.extend_vocab_size = len(load_test_dict(opt.dataset)[0])  # init classifier vocab_size
     cfg.init_param(opt)
     # from cfg to opt.
     opt.save_root = cfg.save_root

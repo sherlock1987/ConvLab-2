@@ -9,8 +9,10 @@
 
 import torch
 import torch.nn.functional as F
-
-from models.generator import LSTMGenerator
+import torch
+import torch.nn as nn
+from convlab2.policy.mle.idea4.GAN.models.generator import LSTMGenerator
+from convlab2.policy.mle.idea4.model_dialogue import dialogue_VAE
 
 
 class SeqGAN_G(LSTMGenerator):
@@ -37,3 +39,32 @@ class SeqGAN_G(LSTMGenerator):
         loss = -torch.sum(pred * reward)
 
         return loss
+
+class Generator(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.embedding = dialogue_VAE(
+        embedding_size= 549,
+        rnn_type= "gru",
+        hidden_size = 512,
+        word_dropout=1,
+        embedding_dropout=1,
+        latent_size = 256,
+        num_layers = 1,
+        bidirectional = True
+        )
+    """
+    1. Embedding the current dialogue
+    2. Take the last hidden states
+    3. Make prediction.
+    """
+    def forward(self, input):
+        """
+        :param input: list of input
+        :return: B*domain*action*slot
+        """
+        # embedding
+        ele = input[0]
+        embedding_dia = self.embedding.compress(input = ele)
+
+        pass

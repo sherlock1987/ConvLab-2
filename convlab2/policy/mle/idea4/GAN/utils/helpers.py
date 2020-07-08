@@ -6,8 +6,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from metrics.nll import NLL
-from utils.data_loader import GenDataIter
+from convlab2.policy.mle.idea4.GAN.metrics.nll import NLL
+from convlab2.policy.mle.idea4.GAN.utils.data_loader import GenDataIter
 
 
 class Signal:

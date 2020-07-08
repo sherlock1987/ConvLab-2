@@ -19,7 +19,9 @@ if_save = True
 data_shuffle = False  # False
 oracle_pretrain = True  # True
 gen_pretrain = True
+gen_path = ""
 dis_pretrain = True
+dis_path = ""
 clas_pretrain = False
 
 run_model = 'seqgan'  # seqgan, leakgan, maligan, jsdgan, relgan, sentigan
@@ -28,12 +30,11 @@ gen_init = 'truncated_normal'  # normal, uniform, truncated_normal
 dis_init = 'uniform'  # normal, uniform, truncated_normal
 
 # ===Oracle or Real, type===
-if_real_data = False  # if use real data
+if_real_data = True  # if use real data
 dataset = 'oracle'  # oracle, image_coco, emnlp_news, amazon_app_book, mr15
 model_type = 'vanilla'  # vanilla, RMC (custom)
 loss_type = 'rsgan'  # standard, JS, KL, hinge, tv, LS, rsgan (for RelGAN)
 vocab_size = 5000  # oracle: 5000, coco: 6613, emnlp: 5255, amazon_app_book: 6418, mr15: 6289
-max_seq_len = 20  # oracle: 20, coco: 37, emnlp: 51, amazon_app_book: 40
 ADV_train_epoch = 2000  # SeqGAN, LeakGAN-200, RelGAN-3000
 extend_vocab_size = 0  # plus test data, only used for Classifier
 
@@ -42,12 +43,10 @@ temperature = 1
 
 # ===Basic Train===
 samples_num = 10000  # 10000, mr15: 2000,
-MLE_train_epoch = 150  # SeqGAN-80, LeakGAN-8, RelGAN-150
+MLE_train_epoch = 50  # SeqGAN-80, LeakGAN-8, RelGAN-150
 PRE_clas_epoch = 10
 inter_epoch = 15  # LeakGAN-10
 batch_size = 64  # 64
-start_letter = 1
-padding_idx = 0
 start_token = 'BOS'
 padding_token = 'EOS'
 gen_lr = 0.01  # 0.01

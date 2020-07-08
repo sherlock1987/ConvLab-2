@@ -10,12 +10,12 @@
 import torch
 import torch.optim as optim
 
-import config as cfg
-from instructor.oracle_data.instructor import BasicInstructor
-from models.SeqGAN_D import SeqGAN_D
-from models.SeqGAN_G import SeqGAN_G
-from utils import rollout
-from utils.data_loader import GenDataIter, DisDataIter
+import convlab2.policy.mle.idea4.GAN.config as cfg
+from convlab2.policy.mle.idea4.GAN.instructor.oracle_data.instructor import BasicInstructor
+from convlab2.policy.mle.idea4.GAN.models.SeqGAN_D import SeqGAN_D
+from convlab2.policy.mle.idea4.GAN.models.SeqGAN_G import SeqGAN_G
+from convlab2.policy.mle.idea4.GAN.utils import rollout
+from convlab2.policy.mle.idea4.GAN.utils.data_loader import GenDataIter, DisDataIter
 
 
 class SeqGANInstructor(BasicInstructor):
@@ -23,14 +23,14 @@ class SeqGANInstructor(BasicInstructor):
         super(SeqGANInstructor, self).__init__(opt)
 
         # generator, discriminator
-        self.gen = SeqGAN_G(cfg.gen_embed_dim, cfg.gen_hidden_dim, cfg.vocab_size, cfg.max_seq_len,
-                            cfg.padding_idx, gpu=cfg.CUDA)
-        self.dis = SeqGAN_D(cfg.dis_embed_dim, cfg.vocab_size, cfg.padding_idx, gpu=cfg.CUDA)
+        self.gen = SeqGAN_G(cfg.gen_embed_dim, cfg.gen_hidden_dim, cfg.vocab_size, gpu=cfg.CUDA)
+        # self.dis = SeqGAN_D(cfg.dis_embed_dim, cfg.vocab_size, cfg.padding_idx, gpu=cfg.CUDA)
         self.init_model()
 
-        # Optimizer
+        # Optimizer two for gen, one for dis.
         self.gen_opt = optim.Adam(self.gen.parameters(), lr=cfg.gen_lr)
         self.gen_adv_opt = optim.Adam(self.gen.parameters(), lr=cfg.gen_lr)
+
         self.dis_opt = optim.Adam(self.dis.parameters(), lr=cfg.dis_lr)
 
     """
@@ -39,15 +39,16 @@ class SeqGANInstructor(BasicInstructor):
     def _run(self):
         # ===PRE-TRAINING===
         # TRAIN GENERATOR
-
         if cfg.gen_pretrain:
             self.log.info('Starting Generator MLE Training...')
             self.pretrain_generator(cfg.MLE_train_epoch)
             if cfg.if_save and not cfg.if_test:
                 torch.save(self.gen.state_dict(), cfg.pretrained_gen_path)
                 print('Save pre-trained generator: {}'.format(cfg.pretrained_gen_path))
-
-
+        else:
+            # load this model
+            #
+            pass
 
         # ===TRAIN DISCRIMINATOR====
         if cfg.dis_pretrain:
@@ -56,6 +57,9 @@ class SeqGANInstructor(BasicInstructor):
             if cfg.if_save and not cfg.if_test:
                 torch.save(self.dis.state_dict(), cfg.pretrained_dis_path)
                 print('Save pre-trained discriminator: {}'.format(cfg.pretrained_dis_path))
+        else:
+            #load this model
+            pass
 
         # ===ADVERSARIAL TRAINING===
         self.log.info('Starting Adversarial Training...')

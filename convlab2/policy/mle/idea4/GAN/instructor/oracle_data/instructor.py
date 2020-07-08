@@ -12,13 +12,13 @@ import os
 import torch
 import torch.nn as nn
 
-import config as cfg
-from metrics.nll import NLL
-from models.Oracle import Oracle
-from utils.data_loader import GenDataIter
-from utils.data_utils import create_multi_oracle
-from utils.helpers import Signal, create_logger, create_oracle, get_fixed_temperature
-from utils.text_process import write_tensor
+import convlab2.policy.mle.idea4.GAN.config as cfg
+from convlab2.policy.mle.idea4.GAN.metrics.nll import NLL
+from convlab2.policy.mle.idea4.GAN.models.Oracle import Oracle
+from convlab2.policy.mle.idea4.GAN.utils.data_loader import GenDataIter
+from convlab2.policy.mle.idea4.GAN.utils.data_utils import create_multi_oracle
+from convlab2.policy.mle.idea4.GAN.utils.helpers import Signal, create_logger, create_oracle, get_fixed_temperature
+from convlab2.policy.mle.idea4.GAN.utils.text_process import write_tensor
 
 
 class BasicInstructor:

@@ -27,6 +27,7 @@ class ActMLEPolicyDataLoader():
         self.state_whole = {}
         self.domain = {}
         self.domain_ont_hot = {}
+        action_set = set()
         data_loader = ActPolicyDataloader(dataset_dataloader=MultiWOZDataloader())
         for part in ['train', 'val', 'test']:
             self.data[part] = []
@@ -51,14 +52,15 @@ class ActMLEPolicyDataLoader():
                 self.data[part].append([self.vector.state_vectorize(state),
                                         self.vector.action_vectorize(action), state['terminated']])
                 self.terminate[part].append(state['terminated'])
-
+                sys_action = self.vector.action_vectorize(action)
+                action_set.add(str(sys_action))
                 self.state_whole[part].append(state)
                 # current_bf = self.vector.state_vectorize(state)
                 # user_action_vec = current_bf[:79]
                 domain_vec = self.vector.return_stuff()
                 self.domain[part].append(domain_vec)
                 self.domain_ont_hot[part].append(encoder[str(domain_vec)])
-
+        print(action_set)
         os.makedirs(processed_dir)
         for part in ['train', 'val', 'test']:
             with open(os.path.join(processed_dir, '{}.pkl'.format(part)), 'wb') as f:

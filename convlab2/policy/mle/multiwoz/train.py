@@ -41,9 +41,7 @@ if __name__ == '__main__':
         cfg = json.load(f)
     init_logging_handler(cfg['log_dir'])
     agent = MLE_Trainer(manager, cfg)
-
     logging.debug('start training')
-
     best = float('inf')
     for e in range(cfg['epoch']):
         agent.imitating(e)

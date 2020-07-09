@@ -85,3 +85,12 @@ def batchwise_oracle_nll(gen, oracle, num_samples, batch_size, max_seq_len, star
         oracle_nll += oracle_loss.data.item()
 
     return oracle_nll/(num_samples/batch_size)
+def prepare_data(data , gpu):
+    """
+    :param input: dict: test: list of tensors
+    :return:
+    """
+    for key, value in data.items:
+
+        print()
+

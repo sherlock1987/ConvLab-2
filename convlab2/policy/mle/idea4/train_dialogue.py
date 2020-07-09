@@ -188,7 +188,7 @@ def main(args):
                     # do evaluation in val.
                     if split == "val":
                         # record evaluation
-                        test_loss = torch.sum(torch.abs((logp > 0.5).type(torch.FloatTensor) - input)).to("cuda")
+                        test_loss = torch.sum(torch.abs((torch.sigmoid(logp) > 0.5).type(torch.FloatTensor) - input)).to("cuda")
                         tracker['test_diff'] = torch.cat((tracker['test_diff'], test_loss.unsqueeze(0)))
 
                     if args.tensorboard_logging and (batchID + 1) % args.print_every == 0:

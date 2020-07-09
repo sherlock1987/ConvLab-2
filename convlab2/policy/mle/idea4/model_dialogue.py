@@ -128,7 +128,7 @@ class dialogue_VAE(nn.Module):
         # b,s,_ = padded_outputs.size()
 
         outputs_layer = self.output_layer(padded_outputs)
-
+        # 因为在这个 bce loss里面加了sigmoid，所以就不用担心了。
         # z is the distribution.
         # outputs = self.output_layer(padded_outputs)
         return original_input_tensor, outputs_layer, mean, logv, z

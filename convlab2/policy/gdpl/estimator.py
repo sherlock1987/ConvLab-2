@@ -77,6 +77,7 @@ class RewardEstimator(object):
         next_s_chunk = torch.chunk(input_next_s, turns)
         
         for s, a, next_s in zip(s_chunk, a_chunk, next_s_chunk):
+            # start generating action
             try:
                 data = self.irl_iter.next()
             except StopIteration:
@@ -263,7 +264,7 @@ class ActEstimatorDataLoaderMultiWoz(ActMLEPolicyDataLoaderMultiWoz):
         next_s = torch.stack(next_s)
         dataset = ActStateDataset(s, a, next_s)
         dataloader = data.DataLoader(dataset, batchsz, True)
-        print('Finish creating {} irl dataset'.format(part))
+        print('Finish creating {} irl dataset, same as the expert dataset.'.format(part))
         return dataloader
         
     

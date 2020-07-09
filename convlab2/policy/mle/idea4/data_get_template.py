@@ -14,7 +14,7 @@ import pickle
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 import torch.tensor as tensor
 import torch
-
+import collections
 import copy
 import numpy as np
 import pandas as pd
@@ -28,9 +28,11 @@ RANDOM_SEED = 42
 np.random.seed(RANDOM_SEED)
 torch.manual_seed(RANDOM_SEED)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-save_path = "/home/raliegh/图片/ConvLab-2/convlab2/policy/mle/processed_data/"
+root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+data_path = os.path.join(root_dir, "policy/mle/processed_data")
+save_path = os.path.join(root_dir, "policy/mle/processed_data")
 
-collections = set()
+# collections = set()
 
 def domain_classifier(action):
     """
@@ -182,6 +184,34 @@ def get_elementwise_data(part_which):
     input[part_which] = data_list
     pickle.dump(input, open(os.path.join(save_path, 'sa_element_{}_real.pkl'.format(part_which)), 'wb'))
 
+def get_prev_bf_a(part_which):
+    """
+    This is a function used for create dataset.
+    :param part_which:train val test
+    :return:
+    """
+    # read data first:
+    data_whole = {}
+    with open(os.path.join(data_path, 'sa_element_{}_real.pkl'.format(part_which)), 'rb') as f:
+        data_whole[part_which] = pickle.load(f)[part_which]
+    output = collections.defaultdict(list)
+    for i, data in enumerate(data_whole[part_which]):
+        # divide the last one.
+        if data.size(1) == 1:
+            process = data.clone()
+            prev = torch.zeros(size = ( 1, 1, 549))
+            bf = process[0][0][0:340].unsqueeze(0).unsqueeze(0)
+            a = process[0][0][340:549].unsqueeze(0).unsqueeze(0)
+            output[part_which].append([prev, bf, a])
+        else:
+            process = data.clone()
+            prev = process[0][:-1].unsqueeze(0)
+            bf = process[0][-1][0:340].unsqueeze(0).unsqueeze(0)
+            a = process[0][-1][340:549].unsqueeze(0).unsqueeze(0)
+            output[part_which].append([prev, bf, a])
+
+    pickle.dump(output, open(os.path.join(save_path, 'sa_prev_bf_a_{}.pkl'.format(part_which)), 'wb'))
+
 def get_elementwise_fake(part_which):
     """
     This is a function used for create dataset.
@@ -278,11 +308,15 @@ def load_data(part_which):
     return data_list[part_which], state_whole[part_which], terminate[part_which]
 
 # how to use?
-get_data(part_which="train")
-get_data(part_which="val")
-get_data(part_which="test")
-print(collections)
+# get_data(part_which="train")
+# get_data(part_which="val")
+# get_data(part_which="test")
+# print(collections)
 # data_list, state_whole, terminate = load_data(part_which="train")
 # get_elementwise_fake("train")
 # get_elementwise_fake("val")
 # get_elementwise_fake("test")
+# get_prev_bf_a("train")
+# get_prev_bf_a("test")
+# get_prev_bf_a("val")
+

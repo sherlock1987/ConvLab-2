@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.utils.rnn as rnn_utils
 from convlab2.policy.mle.idea4.utils import to_var
 import copy
+
 class dialogue_VAE(nn.Module):
     def __init__(self, embedding_size, rnn_type, hidden_size, word_dropout, embedding_dropout, latent_size,
                  num_layers=1, bidirectional=False):
@@ -155,6 +156,24 @@ class dialogue_VAE(nn.Module):
         input = self.linear2(self.relu(self.linear1(input.to("cuda"))))
 
         _, hidden = self.encoder_rnn(input)
+        print(hidden.tolist())
+
+        if self.bidirectional or self.num_layers > 1:
+            # flatten hidden state
+            hidden = hidden.view(1, self.hidden_size * self.hidden_factor)
+        else:
+            hidden = hidden.squeeze()
+
+        return hidden
+
+    def compress_eval(self, input):
+        """
+        :param input: network tends to converge, but I am still confused which part should I use. Haha.
+        :return:
+        """
+        input = self.linear2(self.relu(self.linear1(input.to("cuda"))))
+
+        _, hidden = self.encoder_rnn(input)
 
         if self.bidirectional or self.num_layers > 1:
             # flatten hidden state
@@ -170,31 +189,5 @@ class dialogue_VAE(nn.Module):
 
         z = to_var(torch.randn([1, self.latent_size]))
         distribution = z * std + mean
-
-        return hidden
-
-    def compress_eval(self, input):
-        """
-        :param input: network tends to converge, but I am still confused which part should I use. Haha.
-        :return:
-        """
-        input = self.linear2(self.relu(self.linear1(input.to("cuda"))))
-
-        _, hidden = self.encoder_rnn(input)
-
-        # if self.bidirectional or self.num_layers > 1:
-        #     # flatten hidden state
-        #     hidden = hidden.view(1, self.hidden_size * self.hidden_factor)
-        # else:
-        #     hidden = hidden.squeeze()
-        #
-        # # REPARAMETERIZATION
-        # # related to latent size, which is 16 (16/256)
-        # mean = self.hidden2mean(hidden)
-        # logv = self.hidden2logv(hidden)
-        # std = torch.exp(0.5 * logv)
-        #
-        # z = to_var(torch.randn([1, self.latent_size]))
-        # distribution = z * std + mean
 
         return _, hidden

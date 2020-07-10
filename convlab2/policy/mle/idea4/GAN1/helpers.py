@@ -1,6 +1,8 @@
 import torch
 from torch.autograd import Variable
 from math import ceil
+from random import randint, sample
+
 
 def prepare_generator_batch(samples, start_letter=0, gpu=False):
     """
@@ -33,8 +35,7 @@ def prepare_generator_batch(samples, start_letter=0, gpu=False):
 
 def prepare_discriminator_data(pos_samples, neg_samples, gpu=False):
     """
-    Takes positive (target) samples, negative (generator) samples and prepares inp and target data for discriminator.
-
+    Make Concatenate, we could not use perm, it will let network learns nothing.
     Inputs: pos_samples, neg_samples
         - pos_samples: pos_size x seq_len
         - neg_samples: neg_size x seq_len
@@ -43,19 +44,18 @@ def prepare_discriminator_data(pos_samples, neg_samples, gpu=False):
         - inp: (pos_size + neg_size) x seq_len
         - target: pos_size + neg_size (boolean 1/0)
     """
-
-    inp = torch.cat((pos_samples, neg_samples), 0).type(torch.LongTensor)
-    target = torch.ones(pos_samples.size()[0] + neg_samples.size()[0])
-    target[pos_samples.size()[0]:] = 0
-
+    # pack the positive and negative.
+    inp = torch.cat((pos_samples, neg_samples), 1).type(torch.LongTensor)
+    target = torch.ones(pos_samples.size()[1] + neg_samples.size()[1])
+    # [real : fake] = [1 : 0]
+    target[pos_samples.size()[1]:] = 0.
     # shuffle
-    perm = torch.randperm(target.size()[0])
+    perm = torch.randperm(target.size(0))
     target = target[perm]
-    inp = inp[perm]
-
-    inp = Variable(inp)
-    target = Variable(target)
-
+    inp = inp[0][perm].unsqueeze(0)
+    # set variable to unchanged, and have grad
+    # inp = Variable(inp)
+    # target = Variable(target)
     if gpu:
         inp = inp.cuda()
         target = target.cuda()
@@ -93,4 +93,10 @@ def prepare_data(data , gpu):
     for key, value in data.items:
 
         print()
+def oracle_sample(input_data, num):
+    """
+    :param input_data: list of tensors
+    :return: list of tensors
+    """
+    return sample(input_data, num)
 

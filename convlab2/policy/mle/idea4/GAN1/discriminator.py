@@ -2,42 +2,40 @@ import torch
 import torch.autograd as autograd
 import torch.nn as nn
 import pdb
+import numpy as np
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class Discriminator(nn.Module):
-
-    def __init__(self, embedding_dim, hidden_dim, vocab_size, max_seq_len, gpu=False, dropout=0.2):
+    def __init__(self, input_hidden_size = 1024):
         super(Discriminator, self).__init__()
-        self.hidden_dim = hidden_dim
-        self.embedding_dim = embedding_dim
-        self.max_seq_len = max_seq_len
-        self.gpu = gpu
+        # self.d_layer = nn.Sequential(nn.Linear(input_hidden_size, np.ceil(input_hidden_size / 3)),
+        #                        nn.ReLU(),
+        #                        nn.Linear(np.ceil(input_hidden_size / 3), np.ceil(input_hidden_size / 6)),
+        #                        nn.ReLU(),
+        #                        nn.Linear(np.ceil(input_hidden_size / 6), np.ceil(input_hidden_size / 12)),
+        #                        nn.ReLU(),
+        #                        nn.Linear(np.ceil(input_hidden_size / 12), np.ceil(input_hidden_size / 1)))
 
-        self.embeddings = nn.Embedding(vocab_size, embedding_dim)
-        self.gru = nn.GRU(embedding_dim, hidden_dim, num_layers=2, bidirectional=True, dropout=dropout)
-        self.gru2hidden = nn.Linear(2*2*hidden_dim, hidden_dim)
-        self.dropout_linear = nn.Dropout(p=dropout)
-        self.hidden2out = nn.Linear(hidden_dim, 1)
+        self.d_layer = nn.Sequential(nn.Linear(input_hidden_size, input_hidden_size//3),
+                               nn.ReLU(),
+                                     nn.Linear(input_hidden_size//3, input_hidden_size // 6),
+                               nn.ReLU(),
+                                     nn.Linear(input_hidden_size//6, input_hidden_size // 12),
+                               nn.ReLU(),
+                                     nn.Linear(input_hidden_size//12, 1),
+                               nn.ReLU())
+        # self.d_layer = nn.Sequential(nn.Linear(input_hidden_size,500),
+        #                              nn.ReLU(),
+        #                              nn.Linear(500,1))
 
-    def init_hidden(self, batch_size):
-        h = autograd.Variable(torch.zeros(2*2*1, batch_size, self.hidden_dim))
+        self.output_layer = nn.Sigmoid()
 
-        if self.gpu:
-            return h.cuda()
-        else:
-            return h
+    def forward(self, input_hidden):
+        prob = self.d_layer(input_hidden)
+        output = self.output_layer(prob)
+        return output
 
-    def forward(self, input, hidden):
-        # input dim                                                # batch_size x seq_len
-        emb = self.embeddings(input)                               # batch_size x seq_len x embedding_dim
-        emb = emb.permute(1, 0, 2)                                 # seq_len x batch_size x embedding_dim
-        _, hidden = self.gru(emb, hidden)                          # 4 x batch_size x hidden_dim
-        hidden = hidden.permute(1, 0, 2).contiguous()              # batch_size x 4 x hidden_dim
-        out = self.gru2hidden(hidden.view(-1, 4*self.hidden_dim))  # batch_size x 4*hidden_dim
-        out = torch.tanh(out)
-        out = self.dropout_linear(out)
-        out = self.hidden2out(out)                                 # batch_size x 1
-        out = torch.sigmoid(out)
-        return out
 
     def batchClassify(self, inp):
         """

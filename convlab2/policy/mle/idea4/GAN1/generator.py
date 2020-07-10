@@ -63,6 +63,17 @@ class Generator(nn.Module):
     3.2 Next I will try add embedding
     3.3 Next I will try 
     """
+    def predict_act(self, prev_list, bf):
+        hidden = self.forward_embedding(prev_list, bf)
+        hidden_prob = self.output_layer(hidden).to("cuda")
+        # make action looks like real
+        zero = torch.zeros_like(hidden_prob)
+        one = torch.ones_like(hidden_prob)
+        a = torch.where(hidden_prob > 0.5, one, hidden_prob)
+        a = torch.where(a < 0.5, zero, a)
+
+        return a
+
     def forward_bf(self, bf):
         """
         :param prev_list: list of tensors: [[ 1, 1, 549], [ 1, 2, 549]]
@@ -85,37 +96,59 @@ class Generator(nn.Module):
                 emb = self.embeddings.compress(prev).unsqueeze(0)
                 input_embedding = torch.cat((input_embedding, emb), 1)
         # [ embedding: bf_embedding]
-        input = torch.cat((input_embedding, self.bf_bf(bf)),2)
+        # no bf embedding is better
+        input = torch.cat((input_embedding, bf),2)
 
         hidden = self.emb_bf_layer(input)
         return hidden
 
 
-    def sample(self, num_samples, start_letter=0):
+    def sample(self, input_samples):
         """
-        Samples the network and returns num_samples samples of length max_seq_len.
-
-        Outputs: samples, hidden
-            - samples: num_samples x max_seq_length (a sampled sequence in each row)
+        :param input_samples: list of tensors
+        :param num_samples: number of samples
+        :return: pos and neg, list of tensors
         """
+        """
+        1. get fake action: [1 , num, 549]
+        2. concatenate to real and fake dialogue
+        3. do embedding to every dialogue
+        4. out put.
+        """
+        # set clip
+        test = torch.ones(size = (1,1,549)).to(device).float()
+        emb_test = self.embeddings.compress(test)
+        test_list = [test]
+        self.forward_embedding(test_list, torch.zeros(size=(1,1,340)).to(device))
+        samples_pos = tensor([])
+        samples_neg = tensor([])
 
-        samples = torch.zeros(num_samples, self.max_seq_len).type(torch.LongTensor)
+        # make a sample work
+        # with torch.no_grad():
+        prev_list = []
+        bf_temp = tensor([])
+        target_temp = tensor([])
+        for i, ele in enumerate(input_samples):
+            prev, bf, target = input_samples[i]
+            prev_list.append(prev)
+            bf_temp = torch.cat((bf_temp, bf), 1)
+            target_temp = torch.cat((target_temp, target), 1)
+        # [1, num, 549]
+        fake_action = self.predict_act(prev_list, bf_temp)
+        for i, ele in enumerate(input_samples):
+            prev, bf, target = ele
+            # last [bf : action]
+            last_real_cur = torch.cat((bf, target), 2)
+            last_fake_cur = torch.cat((bf, fake_action[0][i].unsqueeze(0).unsqueeze(0)), 2)
+            # whole dialogue [ 1, num, 1024]
+            real_cur = torch.cat((prev.to("cuda"), last_real_cur.to("cuda")), 1)
+            fake_cur = torch.cat((prev.to("cuda"), last_fake_cur.to("cuda")), 1)
+            # do embedding
+            emb = self.embeddings.compress(real_cur).unsqueeze(0).to("cuda")
+            samples_pos = torch.cat((samples_pos, self.embeddings.compress(real_cur).unsqueeze(0).to("cuda")), 1)
+            samples_neg = torch.cat((samples_neg, self.embeddings.compress(fake_cur).unsqueeze(0).to("cuda")), 1)
 
-        h = self.init_hidden(num_samples)
-        inp = autograd.Variable(torch.LongTensor([start_letter]*num_samples))
-
-        if self.gpu:
-            samples = samples.cuda()
-            inp = inp.cuda()
-
-        for i in range(self.max_seq_len):
-            out, h = self.forward(inp, h)               # out: num_samples x vocab_size
-            out = torch.multinomial(torch.exp(out), 1)  # num_samples x 1 (sampling from each row)
-            samples[:, i] = out.view(-1).data
-
-            inp = out.view(-1)
-
-        return samples
+        return samples_pos, samples_neg
 
     def batchNLLLoss(self, prev_list, bf, target, loss_func = "bce"):
         """
@@ -128,7 +161,8 @@ class Generator(nn.Module):
             classification_loss = torch.nn.BCEWithLogitsLoss(reduction="sum", weight=pos_weights)
             # loss = classification_loss(self.forward_embedding(prev_list, bf), target)
             loss = classification_loss(self.forward_embedding(prev_list, bf), target)
-        elif loss_func == "emb":
+        elif loss_func == "gumbel_softmax":
+            # Todo： Write down the gumbel softmax function
             pass
         return loss
 

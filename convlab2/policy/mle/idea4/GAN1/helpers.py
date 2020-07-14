@@ -1,3 +1,5 @@
+#!/usr/bin/env Python
+# coding=utf-8
 import torch
 from torch.autograd import Variable
 from math import ceil
@@ -33,29 +35,44 @@ def prepare_generator_batch(samples, start_letter=0, gpu=False):
     return inp, target
 
 
-def prepare_discriminator_data(pos_samples, neg_samples, gpu=False):
+def prepare_discriminator_data(pos_samples, neg_samples, ratio_pos, ratio_neg, gpu=False):
     """
-    Make Concatenate, we could not use perm, it will let network learns nothing.
-    Inputs: pos_samples, neg_samples
-        - pos_samples: pos_size x seq_len
-        - neg_samples: neg_size x seq_len
+    :param pos_samples: [1, num_samples, 549]
+    :param neg_samples:[1, num_samples, 549]
 
-    Returns: inp, target
-        - inp: (pos_size + neg_size) x seq_len
-        - target: pos_size + neg_size (boolean 1/0)
+    :param gpu: True
+    :return: random samples and target(1, 0)
     """
-    # pack the positive and negative.
-    inp = torch.cat((pos_samples, neg_samples), 1).type(torch.LongTensor)
-    target = torch.ones(pos_samples.size()[1] + neg_samples.size()[1])
+    # get number for each case.
+    if ratio_pos > ratio_neg:
+        # 1 : 0.9
+        pos_num = pos_samples.size(1)
+        neg_num = int(neg_samples.size(1)* (ratio_neg/ratio_pos))
+    elif ratio_pos == ratio_neg:
+        # 1 : 1
+        pos_num = pos_samples.size(1)
+        neg_num = neg_samples.size(1)
+    else:
+        # 1 : 10
+        pos_num = int(pos_samples.size(1) * (ratio_pos/ratio_neg))
+        neg_num = neg_samples.size(1)
+
+    pos_samples_clone = pos_samples.clone()
+    pos_samples_clone = pos_samples_clone[0][:pos_num].unsqueeze(0)
+    neg_samples_clone = neg_samples.clone()
+    neg_samples_clone = neg_samples_clone[0][:neg_num].unsqueeze(0)
+
+    inp = torch.cat((pos_samples_clone, neg_samples_clone), 1).type(torch.LongTensor)
+    target = torch.ones(pos_samples_clone.size(1) + neg_samples_clone.size(1))
     # [real : fake] = [1 : 0]
-    target[pos_samples.size()[1]:] = 0.
+    target[pos_samples_clone.size(1):] = 0.
     # shuffle
     perm = torch.randperm(target.size(0))
     target = target[perm]
     inp = inp[0][perm].unsqueeze(0)
     # set variable to unchanged, and have grad
-    # inp = Variable(inp)
-    # target = Variable(target)
+    inp = Variable(inp)
+    target = Variable(target)
     if gpu:
         inp = inp.cuda()
         target = target.cuda()

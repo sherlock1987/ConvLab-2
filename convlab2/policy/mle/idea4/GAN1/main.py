@@ -1,3 +1,10 @@
+#!/usr/bin/env Python
+# coding=utf-8
+"""
+Potential Bugs:
+    1. check if embedding is all zero.
+    2. Check the predict action.
+"""
 from __future__ import print_function
 from math import ceil
 import numpy as np
@@ -11,13 +18,13 @@ import os
 from convlab2.policy.mle.idea4.GAN1.generator import Generator
 from convlab2.policy.mle.idea4.GAN1.discriminator import Discriminator
 import convlab2.policy.mle.idea4.GAN1.helpers
-from convlab2.policy.mle.idea4.GAN1.helpers import prepare_data, prepare_discriminator_data, oracle_sample, batchwise_sample
+from convlab2.policy.mle.idea4.GAN1.helpers import prepare_data, prepare_discriminator_data, oracle_sample, batchwise_sample, batchwise_oracle_nll
 import pickle
 import random
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 assert device != "cuda"
-
+import time
 # set  seed
 seed = 1
 torch.manual_seed(seed)
@@ -34,15 +41,14 @@ CUDA = True
 VOCAB_SIZE = 5000
 MAX_SEQ_LEN = 20
 START_LETTER = 0
-BATCH_SIZE = 32
+BATCH_SIZE_G = 32
 BATCH_SIZE_D = 32
-MLE_TRAIN_EPOCHS = 10
+MLE_TRAIN_EPOCHS = 30
 ADV_TRAIN_EPOCHS = 50
-POS_NEG_SAMPLES = 10000
 
 GEN_EMBEDDING_DIM = 32
 GEN_HIDDEN_DIM = 32
-gen_lr = 1e-2
+gen_lr = 1e-3
 dis_lr = 1e-3
 
 DIS_EMBEDDING_DIM = 64
@@ -50,28 +56,37 @@ DIS_HIDDEN_DIM = 64
 # path stuff
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 data_path = os.path.join(root_dir, "mle/processed_data")
-load_VAE_path = os.path.join(root_dir, "mle/idea4/model/VAE_39.pol.mdl")
-# load_VAE_path = os.path.join(root_dir, "mle/idea4/model/VAE_39_complete.pol.mdl")
+# raise NotImplementedError
+# convlab2/policy/mle/idea4/model/VAE_20_123.pol.mdl
+# wrong VAE model, GRU not work at all
+# load_VAE_path = os.path.join(root_dir, "mle/idea4/model/VAE_20_123.pol.mdl")
+load_VAE_path = os.path.join(root_dir, "mle/idea4/model/VAE_39_complete.pol.mdl")
 
+# path stuff
 pretrained_gen_path = os.path.join(root_dir, "mle/idea4/GAN1/Gen")
 pretrained_dis_path = os.path.join(root_dir, "mle/idea4/GAN1/Dis")
 if not os.path.exists(pretrained_gen_path): os.makedirs(pretrained_gen_path)
 if not os.path.exists(pretrained_dis_path): os.makedirs(pretrained_dis_path)
 
-
 tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
 
-
-def train_generator_MLE(gen, gen_opt, real_data_samples, epochs):
+def train_generator_MLE(gen, gen_opt, real_data_samples, epochs = 10):
     """
-    Max Likelihood Pretraining for the generator
+    :param gen:
+    :param gen_opt:
+    :param real_data_samples:
+    :param epochs:
+    :return:
     """
     """
-    1. ----Train, val at each epoch.
+    1. --Train, val at each epoch.
     2. Test at last epoch.
+    3. Change two stuff for quicker watching, 1. seq_train, 2. dataset
+    4. No sample, since this is MLE training process.
+    5. 30 epoch seems not enough. the loss is still going downer
     """
-    # seq_train = ["train", "val", "test"]
-    seq_train = ["val", "train", "test"]
+    seq_train = ["train", "val", "test"]
+    # seq_train = ["val", "train", "test"]
     for epoch in range(epochs):
         gen.train()
         print('epoch %d : ' % (epoch + 1), end='')
@@ -87,10 +102,13 @@ def train_generator_MLE(gen, gen_opt, real_data_samples, epochs):
             bf_temp = torch.cat((bf_temp, bf.to(DEVICE)), dim=1)
             target_temp = torch.cat((target_temp, target.to(DEVICE)), dim=1)
 
-            if len(prev_list) == BATCH_SIZE:
+            if len(prev_list) == BATCH_SIZE_G:
                 gen_opt.zero_grad()
                 loss = gen.batchNLLLoss(prev_list, bf_temp, target_temp)
                 loss.backward()
+                # for name, param in gen.named_parameters():
+                #     print(name)
+                #     print(param.grad)
                 gen_opt.step()
                 total_loss += loss.data.item()
 
@@ -99,18 +117,19 @@ def train_generator_MLE(gen, gen_opt, real_data_samples, epochs):
                 bf_temp = tensor([])
                 target_temp = tensor([])
 
-            if ceil((iteration / BATCH_SIZE) % 100) == 0:
+            if ceil((iteration / BATCH_SIZE_G) % 100) == 0:
                 print('.', end='')
                 sys.stdout.flush()
         total_loss = total_loss / float(iteration)
         print('average_train_Loss = %.4f' % (total_loss), end="   ")
+
         # do validation loss over here.
         gen.eval()
         sys.stdout.flush()
-        total_loss = 0
         prev_list = []
         bf_temp = tensor([])
-        target_temp = tensor([]).to(DEVICE)
+        target_temp = tensor([])
+        real_data_samples["val"] = real_data_samples["val"][:3]
         for iteration, ele in enumerate(real_data_samples["val"]):
             # from here to get input, and target.
             prev, bf, target = real_data_samples["val"][iteration]
@@ -118,154 +137,300 @@ def train_generator_MLE(gen, gen_opt, real_data_samples, epochs):
             bf_temp = torch.cat((bf_temp, bf.to(DEVICE)), dim=1)
             target_temp = torch.cat((target_temp, target.to(DEVICE)), dim=1)
 
-            if len(prev_list) == BATCH_SIZE:
-                gen_opt.zero_grad()
-                loss = gen.batchEVAL(prev_list, bf_temp, target_temp)
-                total_loss += loss.data.item()
+        target_score = torch.sum(target_temp)
+        val_eval_1, val_eval_2 = gen.batchEVAL(prev_list, bf_temp, target_temp)
+        # empty the clip
+        prev_list = []
+        bf_temp = tensor([])
+        target_temp = tensor([])
 
+        val_eval_1 = val_eval_1.item() / float(iteration)
+        val_eval_2 = val_eval_2.item() / float(iteration)
+        target_score = target_score.item() / float(iteration)
+        print('val_eval- = %.4f, val_eval* = %.4f (%.2f act)' % (val_eval_1, val_eval_2, target_score))
+
+    # # test
+    # gen.eval()
+    # # set clip
+    # sys.stdout.flush()
+    # total_loss = 0
+    # prev_list = []
+    # bf_temp = tensor([])
+    # target_temp = tensor([]).to(DEVICE)
+    # for iteration, ele in enumerate(real_data_samples["test"]):
+    #     # from here to get input, and target.
+    #     prev, bf, target = real_data_samples["test"][iteration]
+    #     prev_list.append(prev.to(DEVICE))
+    #     bf_temp = torch.cat((bf_temp, bf.to(DEVICE)), dim=1)
+    #     target_temp = torch.cat((target_temp, target.to(DEVICE)), dim=1)
+    #
+    #     if len(prev_list) == BATCH_SIZE_G:
+    #         gen_opt.zero_grad()
+    #         loss = gen.batchEVAL(prev_list,bf_temp, target_temp)
+    #         total_loss += loss.data.item()
+    #
+    #         # empty the clip
+    #         prev_list = []
+    #         bf_temp = tensor([])
+    #         target_temp = tensor([])
+    #
+    # total_loss = total_loss / float(iteration)
+    # print('average_test_Loss = %.4f' % (total_loss))
+
+def train_generator_PG(gen, dis, real_data_samples, G_D_lr = 1e-4, num_samples = 5000, num_val_sample = 2000, epochs=10):
+    """
+    :param gen:
+    :param gen_opt:
+    :param oracle:
+    :param dis:
+    :param epochs:
+    :return:
+    """
+    # sample some stuff.
+    data_cur = real_data_samples["train"]
+    # data_cur = real_data_samples["val"]
+    sample_oracle_data = oracle_sample(data_cur, num_samples)
+    # set dis no gradient
+    dis.eval()
+    gen_optimizer = optim.Adam(gen.parameters(), lr=G_D_lr)
+    for epoch in range(epochs):
+        gen.train()
+        print('epoch %d : ' % (epoch + 1), end='')
+        sys.stdout.flush()
+        total_loss = 0
+        prev_list = []
+        bf_temp = torch.tensor([], requires_grad=False).to(DEVICE)
+        target_temp = torch.tensor([]).to(DEVICE)
+        for iteration, ele in enumerate(sample_oracle_data):
+            # from here to get input, and target.
+            prev, bf, target = sample_oracle_data[iteration]
+            prev_list.append(prev.to(DEVICE))
+            bf_temp = torch.cat((bf_temp, bf.to(DEVICE)), dim=1)
+            target_temp = torch.cat((target_temp, target.to(DEVICE)), dim=1)
+
+            if len(prev_list) == BATCH_SIZE_G:
+                gen_optimizer.zero_grad()
+                pred_action = gen.predict_for_d(prev_list, bf_temp, tau = 0.01)
+                one_a = pred_action[0][-1]
+                dis_input = torch.cat((bf_temp, pred_action), 2)
+                # max reward = min -reward (0 ~ 1)
+                reward = - dis(dis_input)
+                reward = torch.sum(reward)
+                reward.backward()
+                # for name, param in gen.named_parameters():
+                #     print(name)
+                #     print(param.grad)
+                gen_optimizer.step()
+
+                total_loss += reward.data.item()
                 # empty the clip
                 prev_list = []
                 bf_temp = tensor([])
                 target_temp = tensor([])
 
-        total_loss = total_loss / float(iteration)
-        print('average_val_Loss = %.4f' % (total_loss))
+            if ceil((iteration / BATCH_SIZE_G) % 100) == 0:
+                print('.', end='')
+                sys.stdout.flush()
+        total_loss = - total_loss / float(iteration)
+        # print('average_train_reward = %.4f' % (total_loss), end="   ")
+        print('train_reward = %.4f' % (total_loss), end = "    ")
 
-    # test
-    gen.eval()
-    # set clip
-    sys.stdout.flush()
-    total_loss = 0
-    prev_list = []
-    bf_temp = tensor([])
-    target_temp = tensor([]).to(DEVICE)
-    for iteration, ele in enumerate(real_data_samples["test"]):
-        # from here to get input, and target.
-        prev, bf, target = real_data_samples["test"][iteration]
-        prev_list.append(prev.to(DEVICE))
-        bf_temp = torch.cat((bf_temp, bf.to(DEVICE)), dim=1)
-        target_temp = torch.cat((target_temp, target.to(DEVICE)), dim=1)
+        # Evaluation
+        gen.eval()
+        prev_list = []
+        bf_temp = torch.tensor([], requires_grad=False).to(DEVICE)
+        target_temp = torch.tensor([]).to(DEVICE)
+        val_oracle = oracle_sample(real_data_samples["val"], num_val_sample)
 
-        if len(prev_list) == BATCH_SIZE:
-            gen_opt.zero_grad()
-            loss = gen.batchEVAL(prev_list,bf_temp, target_temp)
-            total_loss += loss.data.item()
+        for iteration, ele in enumerate(val_oracle):
+            # from here to get input, and target.
+            prev, bf, target = val_oracle[iteration]
+            prev_list.append(prev.to(DEVICE))
+            bf_temp = torch.cat((bf_temp, bf.to(DEVICE)), dim=1)
+            target_temp = torch.cat((target_temp, target.to(DEVICE)), dim=1)
 
-            # empty the clip
-            prev_list = []
-            bf_temp = tensor([])
-            target_temp = tensor([])
+        pred_action = gen.predict_for_d(prev_list, bf_temp, tau = 0.001)
+        one_a = pred_action[0][-1]
+        dis_input = torch.cat((bf_temp, pred_action), 2)
+        # max reward = min -reward (0 ~ 1)
+        reward = dis(dis_input)
+        reward = torch.sum(reward)
+        # should be no gradient
+        # for name, param in gen.named_parameters():
+        #     print(name)
+        #     print(param.grad)
+        val_loss = reward.data.item()
+        val_loss /= float(iteration)
+        print('val_reward = %.4f' % (val_loss))
+        # empty the clip
+        prev_list = []
+        bf_temp = tensor([])
+        target_temp = tensor([])
 
-    total_loss = total_loss / float(iteration)
-    print('average_test_Loss = %.4f' % (total_loss))
-
-def train_generator_PG(gen, gen_opt, oracle, dis, num_batches):
+def train_discriminator(discriminator, dis_opt, real_data_samples, generator, sample_num, ratio_pos = 1.0 ,ratio_neg = 1.0, d_steps = 1, epochs = 30):
     """
-    The generator is trained using policy gradients, using the reward from the discriminator.
-    Training is done for num_batches batches.
+    :param discriminator:
+    :param dis_opt:
+    :param real_data_samples:
+    :param generator:
+    :param sample_num:
+    :param ratio_pos: [pos_num: neg_num] = [ratio_pos: ratio_neg]
+    :param ratio_neg: [pos_num: neg_num] = [ratio_pos: ratio_neg]
+    :param d_steps:
+    :param epochs:
+    :return:
     """
-    # sample some stuff.
-    for batch in range(num_batches):
-        s = gen.sample(BATCH_SIZE*2)        # 64 works best
-        inp, target = helpers.prepare_generator_batch(s, start_letter=START_LETTER, gpu=CUDA)
-        rewards = dis.batchClassify(target)
-
-        gen_opt.zero_grad()
-        pg_loss = gen.batchPGLoss(inp, target, rewards)
-        pg_loss.backward()
-        gen_opt.step()
-
-    # sample from generator and compute oracle NLL
-    oracle_loss = helpers.batchwise_oracle_nll(gen, oracle, POS_NEG_SAMPLES, BATCH_SIZE, MAX_SEQ_LEN,
-                                                   start_letter=START_LETTER, gpu=CUDA)
-
-    print(' oracle_sample_NLL = %.4f' % oracle_loss)
-
-def train_discriminator(discriminator, dis_opt, real_data_samples, generator, sample_num, d_steps, epochs):
-    """
-    Training the discriminator on real_data_samples (positive) and generated samples from generator (negative).
-    Samples are drawn d_steps times, and the discriminator is trained for epochs epochs.
-    """
-    # generating a small validation set before training (using oracle and generator)
     """
     1. Shuffle data first
-    2. Take the positive to generate negative samples.
+    2. Take the positive to generate negative samples. [pos_num: neg_num] = [ratio_pos: ratio_neg]
     3. Using neg, pos to update D, the thing is, we only have one neg at one time if generator is not update.
     4. If D performs pretty good, we will update G at more time. I think so!!
-    5. Note pos_num and neg_num could be totally different. Let's check out in the future.
     """
     # random dataset
-    data_cur = real_data_samples["val"]
+    data_cur = real_data_samples["train"]
+    # data_cur = real_data_samples["val"]
     random.shuffle(data_cur)
     # repeat this for d_steps
-    generator.train()
+    generator.eval()
     for d_step in range(d_steps):
         # do sample first
-        # generator.eval()
         sample_oracle_data = oracle_sample(data_cur, sample_num)
         pos_train, neg_trian = generator.sample(sample_oracle_data)
-        train_inp, train_target = prepare_discriminator_data(pos_train, neg_trian, gpu=CUDA)
-        loss_fn = nn.BCELoss(reduction="sum")
+        # [real: fake] = [1: 0] sigmoid--1
+        train_inp, train_target = prepare_discriminator_data(pos_train, neg_trian, ratio_pos, ratio_neg, gpu=CUDA)
+        loss_fn = nn.MSELoss(reduction = "sum")
         for epoch in range(epochs):
             discriminator.train()
             print('d-step %d epoch %d : ' % (d_step + 1, epoch + 1), end='')
             sys.stdout.flush()
+            # empty clip
             total_loss = 0
             total_acc = 0
+            total_eval = 0
+            total_pos_pred = 0
+            total_neg_pred = 0
+
             # go to the batch
-            batch_num = np.ceil(sample_num*2 / BATCH_SIZE_D)
+            batch_num = np.ceil((train_inp.size(1)) / BATCH_SIZE_D)
             for i in range(int(batch_num)):
+                # prepare data
                 pointer = i * BATCH_SIZE_D
-                if i == int(batch_num-1):
+                if i == int(batch_num - 1):
                     # for　the　last batch
-                    inp, target = train_inp[0][pointer: sample_num - 1].unsqueeze(0), train_target[pointer: sample_num - 1].unsqueeze(0).unsqueeze(0)
-                    # 200 - 6*32 - 1 = 7
+                    inp, target = train_inp[0][pointer: -1].unsqueeze(0), train_target[pointer: -1].unsqueeze(0).unsqueeze(0)
                     target = target.view(1, -1, 1)
                 else:
                     inp, target = train_inp[0][pointer: pointer + BATCH_SIZE_D].unsqueeze(0), train_target[pointer: pointer + BATCH_SIZE_D].unsqueeze(0).unsqueeze(0)
                     target = target.view(1, -1, 1)
 
+                # step
                 dis_opt.zero_grad()
                 inp = inp.float()
                 out = discriminator(inp)
                 loss = loss_fn(out, target)
                 loss.backward()
-                if epoch == 8:
-                    pass
-                # loss = torch.sum(out - target.view(1,-1,1))
-                # for name, param in discriminator.named_parameters():
-                #     print(name)
-                #     print(param.grad)
                 dis_opt.step()
 
+                # print model collapse
+                # for name,param in discriminator.named_parameters():
+                #     if torch.sum(param.grad).item() == 0.:
+                #         print("name: {} is zero grad at epoch {} and batch {}".format(epoch, i, name))
+
+                # push grad moving
+                # for p in discriminator.parameters():
+                #     p.grad[p.grad != p.grad] = 0.0
+
+                # print the last one.
+                if (epoch == epochs-1 and i == int(batch_num - 1)) or (epoch == 0 and i == int(0)) :
+                    # print(out)
+                    for name, param in discriminator.named_parameters():
+                        pass
+                        # print(name)
+                        # print(param.grad)
+
                 total_loss += loss.data.item()
-                # for balancing data.
-                total_acc += torch.sum((out>0.5)==(target>0.5)).data.item()
+
+                # check for + and -
+                for i in range(target.size(1)):
+                    out_1 = out[0][i].item()
+                    tar_1 = target[0][i].item()
+                    if tar_1 >0.5 and out_1>0.5:
+                        total_pos_pred+=1
+                    elif tar_1<0.5 and out_1<0.5:
+                        total_neg_pred+=1
+                    else:
+                        pass
+
+                total_acc += torch.sum((out>0.5) == (target>0.5)).data.item()
+                # do evaluation over here.
                 # . . .
+                total_eval += torch.abs(torch.sum(out - target)).item()
                 if (i / BATCH_SIZE_D ) % 10 == 0:
                     print('.', end='')
                     sys.stdout.flush()
-            total_loss/=  sample_num
-            total_acc /=  sample_num
+            total_loss/=  (train_inp.size(1))
+
+            if ratio_pos > ratio_neg:
+                total_acc /=  (sample_num + sample_num*(ratio_neg /ratio_pos))
+                total_pos_pred /= sample_num
+                total_neg_pred /= (sample_num*(ratio_neg / ratio_pos))
+                total_eval /= (sample_num + sample_num*(ratio_neg /ratio_pos))/10
+            else:
+                # more neg
+                total_acc /=  (sample_num + sample_num*(ratio_pos /ratio_neg))
+                total_pos_pred /= (sample_num*(ratio_pos /ratio_neg))
+                total_neg_pred /= sample_num
+                total_eval /= (sample_num + sample_num*(ratio_pos /ratio_neg))/10
 
             # do validation
+            # data is from val
+            val_pos_pred = 0
+            val_neg_pred = 0
             discriminator.eval()
-            sample_oracle_data = oracle_sample(data_cur, 200)
-            # based on pos, to get neg. Then get embedding
-            pos_val, neg_val = generator.sample(sample_oracle_data)
-            val_inp, val_target = prepare_discriminator_data(pos_val, neg_val, gpu=CUDA)
-            # do loss again
-            val_pred = discriminator(val_inp.float())
-            loss_val = loss_fn(val_pred, val_target.view(1, -1, 1))
-            loss_val = loss_val.item()
-            loss_val /= 200
-            val_acc = torch.sum((val_pred>0.5)==(val_target>0.5)).data.item()
-            val_acc /= 200
-            print(' average_loss = %.4f, train_acc = %.4f, val_loss = %.4f ,val_acc = %.4f' % (total_loss, total_acc, loss_val, val_acc))
+            num_val_sample = 1000
+            sample_oracle_data = oracle_sample(real_data_samples["val"], num_val_sample)
 
+            pos_val, neg_val = generator.sample(sample_oracle_data)
+            val_inp, val_target = prepare_discriminator_data(pos_val, neg_val, ratio_pos, ratio_neg, gpu=CUDA)
+            # do loss again
+            val_target = val_target.unsqueeze(0).unsqueeze(-1).view(1, -1, 1)
+            val_pred = discriminator(val_inp.float())
+            loss_val = loss_fn(val_pred, val_target)
+            loss_val = loss_val.item()
+            loss_val /= val_inp.size(1)
+
+            val_eval = torch.abs(torch.sum(val_pred - val_target)).item()
+
+            # check for + and -
+            for i in range(val_target.size(1)):
+                out_1 = val_pred[0][i].item()
+                tar_1 = val_target[0][i].item()
+                if tar_1 > 0.5 and out_1 > 0.5:
+                    val_pos_pred += 1
+                elif tar_1 < 0.5 and out_1 < 0.5:
+                    val_neg_pred += 1
+                else:
+                    pass
+
+            if ratio_pos > ratio_neg:
+                total_acc /=  (num_val_sample + num_val_sample*(ratio_neg /ratio_pos))
+                val_pos_pred /= num_val_sample
+                val_neg_pred /= (num_val_sample*(ratio_neg / ratio_pos))
+                val_eval /= (num_val_sample + num_val_sample*(ratio_neg /ratio_pos))/10
+
+            else:
+                # more neg
+                total_acc /=  (num_val_sample + num_val_sample*(ratio_pos /ratio_neg))
+                val_pos_pred /= (num_val_sample*(ratio_pos /ratio_neg))
+                val_neg_pred /= num_val_sample
+                val_eval /= (num_val_sample + num_val_sample*(ratio_pos /ratio_neg))/10
+
+            print('Train: loss = %.4f, eval = %.4f, pos:neg=[%.2f : %.2f]    Val: loss = %.4f, eval = %.4f, pos:neg=[%.2f : %.2f]' % (total_loss, total_eval, total_pos_pred, total_neg_pred, loss_val, val_eval, val_pos_pred, val_neg_pred))
+        # Todo: do test over here.
 
 # MAIN
 if __name__ == '__main__':
+    ts = time.strftime('%Y-%b-%d-%H:%M:%S')
     gen = Generator(GEN_EMBEDDING_DIM, GEN_HIDDEN_DIM, VOCAB_SIZE, MAX_SEQ_LEN, gpu = CUDA)
     dis = Discriminator()
     gen.load_VAE(load_VAE_path)
@@ -275,8 +440,8 @@ if __name__ == '__main__':
         dis = dis.cuda()
     # DATA READING
     print("Starting Loading Data")
-    # splits = ['train', 'val']
-    splits = ['val']
+    splits = ['train', 'val']
+    # splits = ['val']
     if TEST: splits.append("test")
     datasets = {}
     for split in splits:
@@ -285,37 +450,39 @@ if __name__ == '__main__':
     print("Data Loading Successful")
     print("Starting Processing Data into [prev: bf: a]")
 
-    # GENERATOR MLE TRAINING
+    """
+    GENERATOR MLE TRAINING
+    """
     print('Starting Generator MLE Training...')
     gen_optimizer = optim.Adam(gen.parameters(), lr=gen_lr)
     # train_generator_MLE(gen, gen_optimizer, datasets, MLE_TRAIN_EPOCHS)
     # load again, clear optimizer
-    # torch.save(gen.state_dict(), os.path.join(pretrained_gen_path, "pretrain_G.mdl"))
+    # torch.save(gen.state_dict(), os.path.join(pretrained_gen_path, "pretrain_G_{}.mdl".format(ts)))
     gen.load_state_dict(torch.load(os.path.join(pretrained_gen_path, "pretrain_G.mdl")))
     gen.load_VAE(load_VAE_path)
     # train_generator_MLE(gen, gen_optimizer, datasets, MLE_TRAIN_EPOCHS)
 
-    # PRETRAIN DISCRIMINATOR
+    """
+    PRETRAIN DISCRIMINATOR
+    """
     print('\nStarting Discriminator Training...')
     dis_optimizer = optim.Adam(dis.parameters(), lr = dis_lr)
-    train_discriminator(dis, dis_optimizer, datasets, gen, sample_num=200, d_steps=5, epochs=30)
-
-    # torch.save(dis.state_dict(), pretrained_dis_path)
-    # dis.load_state_dict(torch.load(pretrained_dis_path))
+    # train_discriminator(dis, dis_optimizer, datasets, gen, sample_num=50000, ratio_pos = 1.0, ratio_neg = 1.0, d_steps= 3, epochs=20)
+    # torch.save(dis.state_dict(), os.path.join(pretrained_dis_path, "pretrain_D_{}.mdl".format(ts)))
+    dis.load_state_dict(torch.load(os.path.join(pretrained_dis_path, "pretrain_D.mdl")))
 
     # ADVERSARIAL TRAINING
     print('\nStarting Adversarial Training...')
-    oracle_loss = helpers.batchwise_oracle_nll(gen, oracle, POS_NEG_SAMPLES, BATCH_SIZE, MAX_SEQ_LEN,
-                                               start_letter=START_LETTER, gpu=CUDA)
-    print('\nInitial Oracle Sample Loss : %.4f' % oracle_loss)
 
     for epoch in range(ADV_TRAIN_EPOCHS):
         print('\n--------\nEPOCH %d\n--------' % (epoch+1))
         # TRAIN GENERATOR
-        print('\nAdversarial Training Generator : ', end='')
+        print('\nAdversarial Training Generator : ')
         sys.stdout.flush()
-        train_generator_PG(gen, gen_optimizer, oracle, dis, 1)
+        train_generator_PG(gen, dis, datasets, num_samples = 30000, epochs=5)
+        torch.save(gen.state_dict(), os.path.join(pretrained_gen_path, "G_{}.mdl".format(epoch)))
 
         # TRAIN DISCRIMINATOR
         print('\nAdversarial Training Discriminator : ')
-        train_discriminator(dis, dis_optimizer, oracle_samples, gen, oracle, d_steps=5, epochs=3)
+        train_discriminator(dis, dis_optimizer, datasets, gen, sample_num=10000, ratio_pos=1.1, ratio_neg=1.0, d_steps=3, epochs=5)
+        torch.save(dis.state_dict(), os.path.join(pretrained_dis_path, "D_{}.mdl".format(epoch)))

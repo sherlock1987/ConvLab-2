@@ -85,7 +85,6 @@ class dialogue_VAE(nn.Module):
             hidden = hidden.view(batch_size, self.hidden_size * self.hidden_factor)
         else:
             hidden = hidden.squeeze()
-
         # REPARAMETERIZATION
         # related to latent size, which is 16 (16/256)
         mean = self.hidden2mean(hidden)
@@ -96,7 +95,6 @@ class dialogue_VAE(nn.Module):
         z = z * std + mean
         # DECODER latent to real hidden states
         hidden = self.latent2hidden(z)
-
         # add VAE is better than NONE
         if self.bidirectional or self.num_layers > 1:
             # unflatten hidden state
@@ -155,9 +153,10 @@ class dialogue_VAE(nn.Module):
 
         input = self.linear2(self.relu(self.linear1(input.to("cuda"))))
 
-        _, hidden = self.encoder_rnn(input)
-        print(hidden.tolist())
+        packed_input = rnn_utils.pack_padded_sequence(input.to("cuda"), [input.size(1)], batch_first=True)
 
+        _, hidden = self.encoder_rnn(packed_input)
+        sum = torch.sum(hidden)
         if self.bidirectional or self.num_layers > 1:
             # flatten hidden state
             hidden = hidden.view(1, self.hidden_size * self.hidden_factor)

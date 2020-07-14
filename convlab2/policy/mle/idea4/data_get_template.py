@@ -147,8 +147,6 @@ def get_elementwise_data(part_which):
         state_whole[part_which] = pickle.load(f)
     # /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/processed_data/train_terminate.pkl
     manager = ActMLEPolicyDataLoaderMultiWoz()
-
-
     data_whole= manager.create_dataset(part_which, 1)
     s_temp = torch.tensor([])
     a_temp = torch.tensor([])
@@ -319,4 +317,5 @@ def load_data(part_which):
 # get_prev_bf_a("train")
 # get_prev_bf_a("test")
 # get_prev_bf_a("val")
+get_elementwise_data("val")
 

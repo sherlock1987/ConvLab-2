@@ -44,17 +44,15 @@ torch.manual_seed(seed)
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 
-
-
-
 def main(args):
     ts = time.strftime('%Y-%b-%d-%H:%M:%S', time.gmtime())
     splits = ['train', 'val']
-    # splits = ['train'] + (['test'] if args.test else [])
+    splits = splits + (['test'] if args.test else [])
     datasets = OrderedDict()
     # reading data.
     for split in splits:
-        with open(os.path.join(data_path, 'sa_{}.pkl'.format(split)), 'rb') as f:
+        # with open(os.path.join(data_path, 'sa_{}.pkl'.format(split)), 'rb') as f:
+        with open(os.path.join(data_path, 'sa_element_{}_real.pkl'.format(split)), 'rb') as f:
             datasets[split] = pickle.load(f)[split]
 
     model = dialogue_VAE(
@@ -114,7 +112,6 @@ def main(args):
         # KL_weight = 0.
         return loss, KL_loss, KL_weight
 
-
     def test():
         # runing for test.
         batchID = 0
@@ -143,7 +140,7 @@ def main(args):
                 temp = []
                 max_len = 0
                 batchID += 1
-        loss_test = (torch.mean(tracker['test_diff']) / args.batch_size).item()
+        loss_test = (torch.mean(tracker_test['test_diff']) / args.batch_size).item()
         print("Test loss:  ", loss_test)
 
     step = 0
@@ -211,8 +208,9 @@ def main(args):
 
             if split == "val":
                 loss_val_curr = (torch.mean(tracker['test_diff']) / args.batch_size).item()
-                print("Val loss:  ", loss_val_curr)
+                print("Val evaluation loss:  ", loss_val_curr)
                 cur_min = min(loss_val, loss_val_curr)
+                # upper time.
                 if loss_val_curr > cur_min:
                     model_list.append(model.state_dict())
                     if len(model_list) == args.upper_time:
@@ -239,8 +237,9 @@ def main(args):
             #     checkpoint_path = os.path.join(save_path, "VAE%i.mdl"%(epoch))
             #     torch.save(model.state_dict(), checkpoint_path)
             #     print("Model saved at %s" %checkpoint_path)
+    test()
     print("model save at {}".format(save_path))
-    torch.save(model.state_dict(), save_path + "/VAE_{}_complete.pol.mdl".format(epoch))
+    torch.save(model.state_dict(), save_path + "/VAE_{}_123.pol.mdl".format(epoch+1))
 
 
 if __name__ == '__main__':
@@ -252,7 +251,7 @@ if __name__ == '__main__':
     parser.add_argument('--min_occ', type=int, default=1)
     parser.add_argument('--test', type = bool, default=True)
 
-    parser.add_argument('-ep', '--epochs', type=int, default=40)
+    parser.add_argument('-ep', '--epochs', type=int, default=1)
     parser.add_argument('-bs', '--batch_size', type=int, default=32)
     parser.add_argument('-lr', '--learning_rate', type=float, default=0.001)
 

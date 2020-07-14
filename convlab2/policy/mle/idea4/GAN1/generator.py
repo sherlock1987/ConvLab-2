@@ -1,3 +1,5 @@
+#!/usr/bin/env Python
+# coding=utf-8
 import torch
 import torch.autograd as autograd
 import torch.nn as nn
@@ -43,11 +45,23 @@ class Generator(nn.Module):
                                nn.Linear(300, 250),
                                nn.ReLU(),
                                nn.Linear(250,209))
+        self.bf_layer_right = nn.Sequential(nn.Linear(340, 300),
+                               nn.ReLU(),
+                               nn.Linear(300, 250),
+                               nn.ReLU(),
+                               nn.Linear(250,209))
+        self.bf_plus = nn.Linear(1,2)
         self.bf_bf = nn.Linear(340, 340)
         self.output_layer = nn.Sigmoid()
+
+    def output_layer_gumbel_softmax(self, input):
+        return input
+
     def load_VAE(self, path):
+        abc = (torch.load(path, map_location=DEVICE))
         self.embeddings.load_state_dict(torch.load(path, map_location=DEVICE))
 
+    # should be no use.
     def init_hidden(self, batch_size=1):
         h = autograd.Variable(torch.zeros(1, batch_size, self.hidden_dim))
         if self.gpu:
@@ -59,30 +73,62 @@ class Generator(nn.Module):
     1. Embedding the current dialogue
     2. Take the last hidden states, cat it with bf
     3. Make prediction, sequential classification.
-    3.1 First I will try predict 300 actions.
-    3.2 Next I will try add embedding
-    3.3 Next I will try 
+    3.1 First I will try predict 300 actions, next I will try gumbel softmax.
+    3.2 Next I will try add embedding. Add embedding is much better.
     """
     def predict_act(self, prev_list, bf):
-        hidden = self.forward_embedding(prev_list, bf)
-        hidden_prob = self.output_layer(hidden).to("cuda")
+        """
+        :param prev_list:
+        :param bf: [1, batch_size, 549]
+        :return:
+        """
+        # hidden = self.forward_embedding(prev_list, bf)
+        hidden = self.forward_bf(bf)
+        # hidden_prob = self.output_layer(hidden).to("cuda")
         # make action looks like real
-        zero = torch.zeros_like(hidden_prob)
-        one = torch.ones_like(hidden_prob)
-        a = torch.where(hidden_prob > 0.5, one, hidden_prob)
+        # no gradient
+        zero = torch.zeros_like(hidden)
+        one = torch.ones_like(hidden)
+        a = torch.where(hidden > 0.5, one, hidden)
         a = torch.where(a < 0.5, zero, a)
-
         return a
 
-    def forward_bf(self, bf):
+    def predict_for_d(self, prev_list, bf, tau = 0.01):
+        """
+        :param prev_list:
+        :param bf:
+        :return:
+        """
+        input = bf
+        one = self.bf_layer(input).unsqueeze(-1)
+        two = self.bf_plus(one)
+        two = F.gumbel_softmax(two, tau = tau)
+        final = two[0,:,:,0].unsqueeze(0)
+        return final
+
+    def forward_bf(self, bf, tau = 0.8):
         """
         :param prev_list: list of tensors: [[ 1, 1, 549], [ 1, 2, 549]]
         :param hidden:
-        :return: the probability of each slot.
+        :return: the　pro of this stuff. Very close to one hot.
+        """
+        """
+        # half-half method, not so good.
+        input = bf
+        left_part = self.bf_layer(input).unsqueeze(-1)
+        right_part = self.bf_layer_right(input).unsqueeze(-1)
+        comb = torch.cat((left_part, right_part), -1)
+        output = F.gumbel_softmax(comb, tau= tau)
+        left_part_gumbel = output[0,:,:, 0].squeeze(-1).unsqueeze(0)
+        print_test = left_part_gumbel[0].tolist()
+        return left_part_gumbel
         """
         input = bf
-        hidden = self.bf_layer(input)
-        return hidden
+        one = self.bf_layer(input).unsqueeze(-1)
+        two = self.bf_plus(one)
+        two = F.gumbel_softmax(two, tau = tau)
+        final = two[0,:,:,0].unsqueeze(0)
+        return final
 
     def forward_embedding(self, prev_list, bf):
         """
@@ -93,15 +139,16 @@ class Generator(nn.Module):
         input_embedding = tensor([])
         with torch.no_grad():
             for i, prev in enumerate(prev_list):
+                # test = torch.ones(size=(1, 1, 549)).to(device).float()
+                # emb_test = self.embeddings.compress(test)
+                sum = torch.sum(prev)
                 emb = self.embeddings.compress(prev).unsqueeze(0)
                 input_embedding = torch.cat((input_embedding, emb), 1)
         # [ embedding: bf_embedding]
         # no bf embedding is better
         input = torch.cat((input_embedding, bf),2)
-
         hidden = self.emb_bf_layer(input)
         return hidden
-
 
     def sample(self, input_samples):
         """
@@ -116,10 +163,6 @@ class Generator(nn.Module):
         4. out put.
         """
         # set clip
-        test = torch.ones(size = (1,1,549)).to(device).float()
-        emb_test = self.embeddings.compress(test)
-        test_list = [test]
-        self.forward_embedding(test_list, torch.zeros(size=(1,1,340)).to(device))
         samples_pos = tensor([])
         samples_neg = tensor([])
 
@@ -135,18 +178,24 @@ class Generator(nn.Module):
             target_temp = torch.cat((target_temp, target), 1)
         # [1, num, 549]
         fake_action = self.predict_act(prev_list, bf_temp)
+        """
+        # for VAE embedding part
         for i, ele in enumerate(input_samples):
-            prev, bf, target = ele
-            # last [bf : action]
-            last_real_cur = torch.cat((bf, target), 2)
-            last_fake_cur = torch.cat((bf, fake_action[0][i].unsqueeze(0).unsqueeze(0)), 2)
-            # whole dialogue [ 1, num, 1024]
-            real_cur = torch.cat((prev.to("cuda"), last_real_cur.to("cuda")), 1)
-            fake_cur = torch.cat((prev.to("cuda"), last_fake_cur.to("cuda")), 1)
-            # do embedding
-            emb = self.embeddings.compress(real_cur).unsqueeze(0).to("cuda")
-            samples_pos = torch.cat((samples_pos, self.embeddings.compress(real_cur).unsqueeze(0).to("cuda")), 1)
-            samples_neg = torch.cat((samples_neg, self.embeddings.compress(fake_cur).unsqueeze(0).to("cuda")), 1)
+        prev, bf, target = ele
+        # last [bf : action]
+        last_real_cur = torch.cat((bf, target), 2)
+        last_fake_cur = torch.cat((bf, fake_action[0][i].unsqueeze(0).unsqueeze(0)), 2)
+        # whole dialogue [ 1, num, 1024]
+        real_cur = torch.cat((prev.to("cuda"), last_real_cur.to("cuda")), 1)
+        fake_cur = torch.cat((prev.to("cuda"), last_fake_cur.to("cuda")), 1)
+        # do embedding
+        emb = self.embeddings.compress(real_cur).unsqueeze(0).to("cuda")
+        samples_pos = torch.cat((samples_pos, self.embeddings.compress(real_cur).unsqueeze(0).to("cuda")), 1)
+        samples_neg = torch.cat((samples_neg, self.embeddings.compress(fake_cur).unsqueeze(0).to("cuda")), 1)
+        """
+        # for MLP part
+        samples_pos = torch.cat((bf_temp, target_temp), 2)
+        samples_neg = torch.cat((bf_temp, fake_action), 2)
 
         return samples_pos, samples_neg
 
@@ -158,10 +207,15 @@ class Generator(nn.Module):
         """
         if loss_func == "bce":
             pos_weights = torch.full([209], 3, dtype=torch.float).to(DEVICE)
-            classification_loss = torch.nn.BCEWithLogitsLoss(reduction="sum", weight=pos_weights)
+            # classification_loss = torch.nn.BCEWithLogitsLoss(reduction="sum", weight=pos_weights)
+            classification_loss = torch.nn.BCELoss(reduction="sum")
+            # regression_loss = torch.nn.MSELoss(reduction="sum")
+            pred_action = self.forward_bf(bf)
+            # diff = torch.sum(pred_action - target)
+            loss = classification_loss(pred_action, target)
+            pass
             # loss = classification_loss(self.forward_embedding(prev_list, bf), target)
-            loss = classification_loss(self.forward_embedding(prev_list, bf), target)
-        elif loss_func == "gumbel_softmax":
+        elif loss_func == "reg":
             # Todo： Write down the gumbel softmax function
             pass
         return loss
@@ -172,17 +226,23 @@ class Generator(nn.Module):
         :param target:   [ , , ]
         :return: loss
         """
-        # action_prob = self.forward_bf(bf)
-        action_prob = self.forward_embedding(prev_list, bf.to("cuda"))
-        action = self.output_layer(action_prob)
-        test_loss = torch.sum(torch.abs((action > 0.5).type(tensor) - target.to("cuda"))).to("cuda")
-        return test_loss
+        action_prob = self.forward_bf(bf)
+        # action_prob = self.forward_embedding(prev_list, bf.to("cuda"))
+        # action = self.output_layer(action_prob)
+        zero = torch.zeros_like(action_prob)
+        one = torch.ones_like(action_prob)
+        a = torch.where(action_prob > 0.5, one, action_prob)
+        a = torch.where(a < 0.5, zero, a)
+        test_loss_soft = torch.sum(torch.abs(a - target.to("cuda"))).to("cuda")
+        a_1 = a.squeeze(0)
+        t_1 = torch.transpose(target, 1, -1).squeeze(0)
+        test_loss_hard = torch.sum(torch.matmul(a_1, t_1))
+        return test_loss_soft, test_loss_hard
 
     def batchPGLoss(self, inp, target, reward):
         """
         Returns a pseudo-loss that gives corresponding policy gradients (on calling .backward()).
         Inspired by the example in http://karpathy.github.io/2016/05/31/rl/
-
         Inputs: inp, target
             - inp: batch_size x seq_len
             - target: batch_size x seq_len
@@ -191,7 +251,6 @@ class Generator(nn.Module):
 
             inp should be target with <s> (start letter) prepended
         """
-
         batch_size, seq_len = inp.size()
         inp = inp.permute(1, 0)          # seq_len x batch_size
         target = target.permute(1, 0)    # seq_len x batch_size

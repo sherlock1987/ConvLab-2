@@ -486,13 +486,13 @@ if __name__ == "__main__":
 # PPO
 # MLE
 # [0.56, 0.59, 0.57, 0.6, 0.63, 0.62, 0.65, 0.68, 0.67, 0.7, 0.71, 0.72, 0.73, 0.71, 0.72, 0.72, 0.73, 0.76, 0.7, 0.74, 0.82, 0.77, 0.77, 0.76, 0.77, 0.73, 0.77, 0.71, 0.71, 0.7]
-# MLE + idea5(local_real)
+# MLE + idea4(local_real)
 # [0.59, 0.56, 0.62, 0.65, 0.66, 0.67, 0.7, 0.68, 0.7, 0.73, 0.74, 0.69, 0.74, 0.77, 0.73, 0.75, 0.71, 0.74, 0.74, 0.76, 0.77, 0.75, 0.73, 0.73, 0.69, 0.72, 0.7, 0.72, 0.74, 0.75]
-# MLE + idea5(global_mask)
+# MLE + idea4(global_mask)
 # [0.57, 0.6, 0.65, 0.64, 0.67, 0.7, 0.73, 0.77, 0.73, 0.72, 0.73, 0.73, 0.72, 0.7, 0.72, 0.72, 0.71, 0.73, 0.7, 0.71, 0.72, 0.74, 0.73, 0.74, 0.73, 0.75, 0.76, 0.76, 0.74, 0.77]
-# MLE + idea5(local + global(cos))
+# MLE + idea4(local + global(cos))
 # [0.57, 0.63, 0.67, 0.67, 0.67, 0.66, 0.65, 0.63, 0.69, 0.72, 0.69, 0.69, 0.7, 0.71, 0.72, 0.73, 0.61, 0.64, 0.72, 0.74, 0.69, 0.73, 0.69, 0.72, 0.73, 0.73, 0.72, 0.67, 0.67, 0.71]
-# MLE + idea5(local + global(mask))
+# MLE + idea4(local + global(mask))
 # [0.57, 0.63, 0.65, 0.66, 0.7, 0.71, 0.69, 0.72, 0.74, 0.73, 0.71, 0.73, 0.74, 0.75, 0.75, 0.74, 0.73, 0.68, 0.74, 0.7, 0.73, 0.72, 0.72, 0.73, 0.74, 0.73, 0.73, 0.76, 0.75, 0.74]
 # MLE + idea6(local domain classify)
 # [0.57, 0.58, 0.61, 0.69, 0.67, 0.67, 0.71, 0.68, 0.68, 0.7, 0.74, 0.68, 0.73, 0.68, 0.68, 0.71, 0.71, 0.68, 0.76, 0.71, 0.7, 0.7, 0.69, 0.67, 0.69, 0.72, 0.68, 0.73, 0.69, 0.68]
@@ -520,7 +520,7 @@ Description for how to use this file
 args:
 1. Evluate all of models in one root
 PPO
---model_name PPO --evluate_in_dir True --model_path_root /home/raliegh/图片/ConvLab-2/convlab2/policy/ppo/idea5/save
+--model_name PPO --evluate_in_dir True --model_path_root /home/raliegh/图片/ConvLab-2/convlab2/policy/ppo/idea4/save
 GDPL
 --model_name GDPL --evluate_in_dir True --model_path_root /home/raliegh/图片/ConvLab-2/convlab2/policy/gdpl/save
 

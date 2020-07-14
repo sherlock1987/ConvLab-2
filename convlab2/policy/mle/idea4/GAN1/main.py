@@ -5,6 +5,7 @@ Potential Bugs:
     1. check if embedding is all zero.
     2. Check the predict action.
 """
+# Todo, wirte down the log file. And make this python available to run on server.
 from __future__ import print_function
 from math import ceil
 import numpy as np

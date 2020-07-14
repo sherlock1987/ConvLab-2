@@ -15,13 +15,14 @@ from convlab2.nlu.svm.multiwoz import SVMNLU
 from convlab2.dst.rule.multiwoz import RuleDST
 from convlab2.policy.rule.multiwoz import RulePolicy
 # from convlab2.policy.ppo import PPO
-from convlab2.policy.ppo.idea5.ppo import PPO
+from convlab2.policy.ppo.idea4.ppo import PPO
 from convlab2.policy.rlmodule import Memory, Transition
 from convlab2.nlg.template.multiwoz import TemplateNLG
 from convlab2.evaluator.multiwoz_eval import MultiWozEvaluator
 from argparse import ArgumentParser
 import random
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 try:
     mp = mp.get_context('spawn')
@@ -151,68 +152,70 @@ def update(env, policy, batchsz, epoch, process_num):
     r = torch.from_numpy(np.stack(batch.reward)).to(device=DEVICE)
     mask = torch.Tensor(np.stack(batch.mask)).to(device=DEVICE)
     batchsz_real = s.size(0)
-
     policy.update(epoch, batchsz_real, s, a, r, mask)
 
 
-seed_list = [1, 100, 200, 300, 400, 500, 600, 700]
-for i in range(len(seed_list)):
-    seed = seed_list[i]
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)  # Numpy module.
-    random.seed(seed)  # Python random module.
-    torch.manual_seed(seed)
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
+if __name__ == '__main__':
+    parser = ArgumentParser()
+    parser.add_argument("--load_path", type=str, default="", help="path of model to load")
+    parser.add_argument("--save_path", type=str, default="test_1", help="path of model to save")
+    parser.add_argument("--save_st_path", type = int, default=0, help="sub path of model to save")
+    parser.add_argument("--load_path_reward", default="", help="path of model to load from reward machine")
+    parser.add_argument("--batchsz", type=int, default=512, help="batch size of trajactory sampling")
+    parser.add_argument("--epoch", type=int, default=1 , help="number of epochs to train")
+    parser.add_argument("--process_num", type=int, default=1, help="number of processes of trajactory sampling")
+    args = parser.parse_args()
+    sub_root = "convlab2/policy/ppo/idea4"
+    save_path = os.path.join(root_dir, sub_root, args.save_path, str(args.save_st_path))
+    print(save_path)
+    # if not os.path.exists(save_path): os.makedirs(save_path)
 
-    if __name__ == '__main__':
-        parser = ArgumentParser()
-        parser.add_argument("--load_path", type=str, default="", help="path of model to load")
-        parser.add_argument("--load_path_reward", default="", help="path of model to load from reward machine")
-        parser.add_argument("--batchsz", type=int, default=200, help="batch size of trajactory sampling")
-        parser.add_argument("--epoch", type=int, default=1 , help="number of epochs to train")
-        parser.add_argument("--process_num", type=int, default=3, help="number of processes of trajactory sampling")
+    # seed = 1
+    # torch.manual_seed(seed)
+    # torch.cuda.manual_seed(seed)
+    # torch.cuda.manual_seed_all(seed)
+    # np.random.seed(seed)  # Numpy module.
+    # random.seed(seed)  # Python random module.
+    # torch.manual_seed(seed)
+    # torch.backends.cudnn.benchmark = False
+    # torch.backends.cudnn.deterministic = True
 
-        args = parser.parse_args()
+    # simple rule DST
+    dst_sys = RuleDST()
 
-        # simple rule DST
-        dst_sys = RuleDST()
+    policy_sys = PPO(True)
+    # policy_sys.load('/home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle')
+    #policy_sys.load_reward_model('/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/idea4/bin/idea4.pol.mdl')
+    # policy_sys.load_reward_model_idea3(args.load_path_reward)
+    policy_sys.load(args.load_path)
+    # policy_sys.load_reward_model_idea5(args.load_path_reward)
 
-        policy_sys = PPO(True)
-        # policy_sys.load('/home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle')
-        #policy_sys.load_reward_model('/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/idea5/bin/idea5.pol.mdl')
-        # policy_sys.load_reward_model_idea3(args.load_path_reward)
-        policy_sys.load(args.load_path)
-        policy_sys.load_reward_model_idea5(args.load_path_reward)
+    # not use dst
+    dst_usr = None
+    # rule policy
+    policy_usr = RulePolicy(character='usr')
+    # assemble
+    simulator = PipelineAgent(None, None, policy_usr, None, 'user')
 
-        # not use dst
-        dst_usr = None
-        # rule policy
-        policy_usr = RulePolicy(character='usr')
-        # assemble
-        simulator = PipelineAgent(None, None, policy_usr, None, 'user')
+    evaluator = MultiWozEvaluator()
+    env = Environment(None, simulator, None, dst_sys)
 
-        evaluator = MultiWozEvaluator()
-        env = Environment(None, simulator, None, dst_sys)
-
-        for i in range(args.epoch):
-            update(env, policy_sys, args.batchsz, i, args.process_num)
+    for i in range(args.epoch):
+        update(env, policy_sys, args.batchsz, i, args.process_num)
 
 """
 How to add idea_x?
 args:
 --load_path /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle --load_path_reward /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/save/idea1_model/idea_3_descriminator.mdl
-idea5 model
---load_path /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle --load_path_reward /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/idea5/idea5.pol.mdl
+idea4 model
+--load_path /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle --load_path_reward /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/idea4/idea4.pol.mdl
 
 then add init stuff in ppo.init
 then add reward function in ppo, implement it in ppo.upgrade. # A_sa, v_target = self.est_adv(r, v, mask)
 then add function of load model in ppo, implement it in ppo/train.py, modify args of load_reward_model
 then run the code, remember you have to check if there is two models loaded, one is mle, one is reward model.
 
-add reward model for idea5
+add reward model for idea4
 1. Modify the args path
 --load_path /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle --load_path_reward /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/idea7/idea7_domain_tiny_data.pol.mdl
 2. Modify ppo update func

@@ -1,0 +1,283 @@
+Index: convlab2/policy/ppo/idea4/ppo.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- convlab2/policy/ppo/idea4/ppo.py	(revision 51dd29e640937162a5babce231916947941126ce)
++++ convlab2/policy/ppo/idea4/ppo.py	(date 1594816179755)
+@@ -1,4 +1,5 @@
+ # -*- coding: utf-8 -*-
++from importlib import reload
+ import torch
+ from torch import optim
+ from torch import tensor
+@@ -17,8 +18,7 @@
+ from convlab2.policy.mle.idea4.GAN1.discriminator import Discriminator
+ 
+ 
+-root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+-root_dir = "/home/raliegh/图片/ConvLab-2/"
++root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+ sys.path.append(root_dir)
+ 
+ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+Index: convlab2/policy/ppo/train.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- convlab2/policy/ppo/train.py	(revision 51dd29e640937162a5babce231916947941126ce)
++++ convlab2/policy/ppo/train.py	(date 1594813130343)
+@@ -162,7 +162,7 @@
+     parser.add_argument("--load_path_reward", default="", help="path of model to load from reward machine")
+     parser.add_argument("--batchsz", type=int, default=1024, help="batch size of trajactory sampling")
+     parser.add_argument("--epoch", type=int, default=30 , help="number of epochs to train")
+-    parser.add_argument("--process_num", type=int, default=1, help="number of processes of trajactory sampling")
++    parser.add_argument("--process_num", type=int, default=2, help="number of processes of trajactory sampling")
+     args = parser.parse_args()
+     # sub_root = "convlab2/policy/ppo/idea4"
+     # save_path = os.path.join(root_dir, sub_root, args.save_path, str(args.save_st_path))
+Index: convlab2/policy/ppo/idea4/config.json
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- convlab2/policy/ppo/idea4/config.json	(revision 51dd29e640937162a5babce231916947941126ce)
++++ convlab2/policy/ppo/idea4/config.json	(date 1594816183019)
+@@ -5,7 +5,7 @@
+ 	"tau": 0.95,
+ 	"policy_lr": 0.0001,
+ 	"value_lr": 0.00005,
+-	"save_dir": "save/2020-07-15--16:28:59/5",
++	"save_dir": "save/2020-07-15--20:29:43/1",
+ 	"log_dir": "log",
+ 	"save_per_epoch": 1,
+ 	"update_round": 5,
+Index: convlab2/policy/vector/vector_multiwoz.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- convlab2/policy/vector/vector_multiwoz.py	(revision 51dd29e640937162a5babce231916947941126ce)
++++ convlab2/policy/vector/vector_multiwoz.py	(date 1594815466296)
+@@ -8,6 +8,7 @@
+ from convlab2.util.multiwoz.multiwoz_slot_trans import REF_USR_DA
+ from convlab2.util.multiwoz.dbquery import Database
+ # slot value, not the belief state, I believ belief state is related to the slot, like addr has three values, and bf will show that.
++
+ mapping = {'restaurant': {'addr': 'address', 'area': 'area', 'food': 'food', 'name': 'name', 'phone': 'phone',
+                           'post': 'postcode', 'price': 'pricerange'},
+            'hotel': {'addr': 'address', 'area': 'area', 'internet': 'internet', 'parking': 'parking', 'name': 'name',
+Index: submit_text.sh
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- submit_text.sh	(date 1594815937408)
++++ submit_text.sh	(date 1594815937408)
+@@ -0,0 +1,46 @@
++#!/bin/bash
++#1. seed, the saving dir(seed)
++#1.1 write stuff to config file
++#2. evaluation.py ts write down the result into the same file
++#3. note the process_num
++CUDA_VISIBLE_DEVICES=0
++time=$(date "+%Y-%m-%d--%H:%M:%S")
++root=`pwd`
++echo "${MYDIR}"
++echo "${time}"
++
++config_path=${root}/"convlab2/policy/ppo/idea4/config.json"
++RL_path=${root}/"convlab2/policy/ppo/train.py"
++load_path=${root}/"convlab2/policy/mle/multiwoz/best_mle"
++Eval_path=${root}/"convlab2/policy/evaluate.py"
++for process_id in $(seq 1 2)
++do
++  {
++    # write the config file first.
++    # make sure the sub_code_path
++    sub_save_path="save"/${time}/${process_id}
++    complete_sub_save_path=${root}/"convlab2/policy/ppo/idea4/"${sub_save_path}
++    log_path=${root}/"convlab2/policy/ppo/idea4/save/"${time}/res.txt
++    echo "${sub_save_path}"
++#    sleep $[process_id*10]
++    echo '{
++	"batchsz": 32,
++	"gamma": 0.99,
++	"epsilon": 0.2,
++	"tau": 0.95,
++	"policy_lr": 0.0001,
++	"value_lr": 0.00005,
++	"save_dir": "'${sub_save_path}'",
++	"log_dir": "log",
++	"save_per_epoch": 1,
++	"update_round": 5,
++	"h_dim": 100,
++	"hv_dim": 50,
++	"load": "save/best"
++}
++'> ${config_path}
++  python ${RL_path} --load_path ${load_path}
++#  python ${Eval_path} --model_name "PPO" --evluate_in_dir True --model_path_root ${complete_sub_save_path} --log_res_path ${log_path}
++  }
++done
++wait
+\ No newline at end of file
+Index: submit_pc.sh
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- submit_pc.sh	(revision 51dd29e640937162a5babce231916947941126ce)
++++ submit_pc.sh	(date 1594815937408)
+@@ -13,7 +13,7 @@
+ RL_path=${root}/"convlab2/policy/ppo/train.py"
+ load_path=${root}/"convlab2/policy/mle/multiwoz/best_mle"
+ Eval_path=${root}/"convlab2/policy/evaluate.py"
+-for process_id in $(seq 1 8)
++for process_id in $(seq 1 2)
+ do
+   {
+     # write the config file first.
+@@ -39,8 +39,8 @@
+ 	"load": "save/best"
+ }
+ '> ${config_path}
+-  python ${RL_path} --load_path ${load_path} --load_path_reward  /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/idea4/GAN1/Dis/pretrain_D.mdl
+-  python ${Eval_path} --model_name "PPO" --evluate_in_dir True --model_path_root ${complete_sub_save_path} --log_res_path ${log_path}
++  python ${RL_path} --load_path ${load_path}
++#  python ${Eval_path} --model_name "PPO" --evluate_in_dir True --model_path_root ${complete_sub_save_path} --log_res_path ${log_path}
+   }
+ done
+ wait
+\ No newline at end of file
+Index: PPO_baseline_8.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- PPO_baseline_8.py	(revision 51dd29e640937162a5babce231916947941126ce)
++++ PPO_baseline_8.py	(date 1594812943246)
+@@ -50,10 +50,17 @@
+ # ,[0.595, 0.605, 0.61, 0.63, 0.655, 0.69, 0.69, 0.68, 0.695, 0.67, 0.65, 0.655, 0.68, 0.645, 0.7, 0.695, 0.695, 0.7, 0.67, 0.67, 0.665, 0.67, 0.67, 0.655, 0.66, 0.65, 0.675, 0.68, 0.675, 0.675]
+ # ,[0.58, 0.6, 0.64, 0.655, 0.655, 0.67, 0.67, 0.685, 0.71, 0.695, 0.705, 0.72, 0.74, 0.75, 0.71, 0.715, 0.72, 0.705, 0.69, 0.72, 0.715, 0.705, 0.685, 0.68, 0.69, 0.675, 0.665, 0.69, 0.67, 0.69]
+ # ,[0.61, 0.595, 0.665, 0.65, 0.665, 0.645, 0.655, 0.67, 0.68, 0.68, 0.675, 0.68, 0.675, 0.66, 0.665, 0.665, 0.68, 0.67, 0.67, 0.64, 0.645, 0.66, 0.655, 0.665, 0.695, 0.69, 0.69, 0.695, 0.68, 0.685]]
+-global_reward = [[0.625, 0.655, 0.67, 0.71, 0.705, 0.715, 0.715, 0.72, 0.71, 0.685, 0.685, 0.695, 0.655, 0.68, 0.645, 0.625, 0.63, 0.67, 0.67, 0.67, 0.685, 0.66, 0.66, 0.65, 0.65, 0.665, 0.655, 0.66, 0.67, 0.635]
+-,[0.605, 0.635, 0.635, 0.62, 0.635, 0.66, 0.655, 0.64, 0.66, 0.615, 0.67, 0.635, 0.675, 0.635, 0.635, 0.63, 0.665, 0.66, 0.645, 0.655, 0.685, 0.665, 0.645, 0.61, 0.615, 0.625, 0.645, 0.64, 0.655, 0.65]
+-,[0.605, 0.58, 0.625, 0.65, 0.62, 0.605, 0.615, 0.64, 0.635, 0.67, 0.65, 0.665, 0.67, 0.68, 0.68, 0.72, 0.725, 0.685, 0.685, 0.695, 0.665, 0.655, 0.655, 0.645, 0.655, 0.655, 0.655, 0.65, 0.645, 0.635]
+-,[0.59, 0.645, 0.635, 0.665, 0.68, 0.705, 0.68, 0.675, 0.67, 0.66, 0.69, 0.715, 0.695, 0.74,0.73, 0.735, 0.74, 0.705, 0.71, 0.715, 0.71, 0.69, 0.69, 0.675, 0.705, 0.695, 0.675, 0.7, 0.695, 0.7]]
++global_reward = [[0.63, 0.64, 0.665, 0.695, 0.745, 0.74, 0.75, 0.77, 0.755, 0.765, 0.765, 0.755, 0.76, 0.75, 0.75, 0.74, 0.74, 0.755, 0.73, 0.73, 0.725, 0.72, 0.725, 0.72, 0.72, 0.725, 0.725, 0.735, 0.715, 0.725],
++[0.615, 0.68, 0.69, 0.69, 0.72, 0.73, 0.75, 0.73, 0.74, 0.745, 0.745, 0.735, 0.74, 0.725, 0.74, 0.74, 0.745, 0.735, 0.75, 0.74, 0.705, 0.7, 0.715, 0.715, 0.725, 0.73, 0.74, 0.735, 0.725, 0.735],
++[0.585, 0.65, 0.71, 0.715, 0.715, 0.705, 0.73, 0.72, 0.745, 0.75, 0.73, 0.745, 0.74, 0.73, 0.755, 0.755, 0.755, 0.755, 0.76, 0.75, 0.75, 0.735, 0.74, 0.745, 0.755, 0.74, 0.74, 0.755, 0.75, 0.745],
++[0.595, 0.65, 0.69, 0.695, 0.725, 0.74, 0.735, 0.74, 0.735, 0.75, 0.755, 0.745, 0.76, 0.755, 0.76, 0.735, 0.75, 0.75, 0.715, 0.745, 0.745, 0.745, 0.745, 0.74, 0.735, 0.745, 0.73, 0.725, 0.735, 0.735],
++[0.62, 0.66, 0.69, 0.72, 0.73, 0.73, 0.735, 0.73, 0.755, 0.74, 0.755, 0.765, 0.765, 0.775, 0.745, 0.765, 0.765, 0.76, 0.75, 0.755, 0.75, 0.735, 0.73, 0.725, 0.725, 0.735, 0.725, 0.745, 0.735, 0.745],
++[0.62, 0.685, 0.695, 0.71, 0.74, 0.74, 0.755, 0.745, 0.765, 0.75, 0.755, 0.75, 0.745, 0.76, 0.745, 0.765, 0.755, 0.76, 0.755, 0.75, 0.75, 0.765, 0.765, 0.77, 0.765, 0.75, 0.77, 0.765, 0.745, 0.75],
++[0.6, 0.645, 0.71, 0.71, 0.72, 0.72, 0.725, 0.735, 0.74, 0.755, 0.76, 0.745, 0.75, 0.75, 0.75, 0.755, 0.77, 0.75, 0.755, 0.74, 0.745, 0.755, 0.74, 0.735, 0.76, 0.745, 0.735, 0.735, 0.715, 0.74],
++[0.61, 0.62, 0.675, 0.685, 0.69, 0.7, 0.72, 0.745, 0.765, 0.76, 0.775, 0.76, 0.765, 0.76, 0.755, 0.77, 0.76, 0.735, 0.76, 0.74, 0.76, 0.735, 0.75, 0.755, 0.72, 0.725, 0.725, 0.725, 0.715, 0.735]]
++
++
++
+ baseline_np = np.array(global_reward)
+ mean = np.mean(baseline_np,axis = 0)
+ data_df = pd.DataFrame(mean)
+diff --git Save_Excel.xlsx Save_Excel.xlsx
+index 9be3c09e24d2f0052f06eea8bdce3d3aef9c1695..52a58994cc8b2a16a855936dbf1682d922b0a321
+GIT binary patch
+literal 5500
+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
+PE%54wTz!!1?_d5G*prUK
+

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from importlib import reload
 import torch
 from torch import optim
 from torch import tensor
@@ -17,8 +18,7 @@ from convlab2.policy.mle.idea9.model_dialogue import dialogue_VAE
 from convlab2.policy.mle.idea4.GAN1.discriminator import Discriminator
 
 
-root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-root_dir = "/home/raliegh/图片/ConvLab-2/"
+root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 sys.path.append(root_dir)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")

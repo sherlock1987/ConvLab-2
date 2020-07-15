@@ -158,16 +158,16 @@ def update(env, policy, batchsz, epoch, process_num):
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("--load_path", type=str, default="", help="path of model to load")
-    parser.add_argument("--save_path", type=str, default="test_1", help="path of model to save")
-    parser.add_argument("--save_st_path", type = int, default=0, help="sub path of model to save")
+    # parser.add_argument("--save_path", type=str, default="test_1", help="path of model to save")
+    # parser.add_argument("--save_st_path", type = int, default=0, help="sub path of model to save")
     parser.add_argument("--load_path_reward", default="", help="path of model to load from reward machine")
-    parser.add_argument("--batchsz", type=int, default=512, help="batch size of trajactory sampling")
-    parser.add_argument("--epoch", type=int, default=1 , help="number of epochs to train")
+    parser.add_argument("--batchsz", type=int, default=32, help="batch size of trajactory sampling")
+    parser.add_argument("--epoch", type=int, default=3 , help="number of epochs to train")
     parser.add_argument("--process_num", type=int, default=1, help="number of processes of trajactory sampling")
     args = parser.parse_args()
-    sub_root = "convlab2/policy/ppo/idea4"
-    save_path = os.path.join(root_dir, sub_root, args.save_path, str(args.save_st_path))
-    print(save_path)
+    # sub_root = "convlab2/policy/ppo/idea4"
+    # save_path = os.path.join(root_dir, sub_root, args.save_path, str(args.save_st_path))
+    # print(save_path)
     # if not os.path.exists(save_path): os.makedirs(save_path)
 
     # seed = 1

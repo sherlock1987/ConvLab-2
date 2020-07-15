@@ -419,6 +419,7 @@ sample_dict = {
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("--log_res_path", type=str, default="", help="log saving path")
     parser.add_argument("--dataset_name", type=str, default="MultiWOZ", help="name of dataset")
     parser.add_argument("--model_name", type=str, default="PPO", help="name of model")
     parser.add_argument("--load_path", type=str, default='', help="path of model")
@@ -428,6 +429,7 @@ if __name__ == "__main__":
                         help="whether to evluate the model from one directory")
     parser.add_argument("--model_path_root", type=str, default="", help="root path which contains many models")
     args = parser.parse_args()
+    print(args)
 
     init_logging(log_dir_path=args.log_dir_path, path_suffix=args.log_path_suffix)
     success_rate_record = []
@@ -447,18 +449,24 @@ if __name__ == "__main__":
                 dataset_name=args.dataset_name,
                 model_name=args.model_name,
                 load_path=model_dir,
-                seed_total= 1000,
+                seed_total= 20,
                 calculate_reward=False
             )
             success_rate = np.mean(result["All"])
             success_rate_record.append(success_rate)
         #  remember to print otherwise you will lose time.
         print(success_rate_record)
+        # write this to a same file.
+        f = open(args.log_res_path, 'a+')
+        f.write(args.model_path_root+"\n")
+        f.write(str(success_rate_record)+"\n")
+        f.close()
+
         axis = [i for i in range(len(success_rate_record))]
         plt.plot(axis, success_rate_record)
         plt.xlabel('Number of Epoch')
         plt.ylabel('Success rate')
-        plt.show()
+        # plt.show()
 # args for the evluator
 # --load_path
 # /home/raliegh/视频/ConvLab-2/convlab2/policy/pg/save/0_pg_plus_reward.pol.mdl
@@ -520,7 +528,7 @@ Description for how to use this file
 args:
 1. Evluate all of models in one root
 PPO
---model_name PPO --evluate_in_dir True --model_path_root /home/raliegh/图片/ConvLab-2/convlab2/policy/ppo/idea4/save
+--model_name PPO --evluate_in_dir True --model_path_root /home/raliegh/图片/ConvLab-2/convlab2/policy/ppo/idea4/save/2020-07-15--14:18:56/1 --log_res_path /home/raliegh/图片/ConvLab-2/convlab2/policy/ppo/idea4/save/2020-07-15--14:18:56
 GDPL
 --model_name GDPL --evluate_in_dir True --model_path_root /home/raliegh/图片/ConvLab-2/convlab2/policy/gdpl/save
 

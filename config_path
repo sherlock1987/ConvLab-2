@@ -1,16 +1,15 @@
-{
+
 	"batchsz": 32,
 	"gamma": 0.99,
 	"epsilon": 0.2,
 	"tau": 0.95,
 	"policy_lr": 0.0001,
 	"value_lr": 0.00005,
-	"save_dir": "save/2020-07-15--14:35:26/2",
+	"save_dir": "1",
 	"log_dir": "log",
 	"save_per_epoch": 1,
 	"update_round": 5,
 	"h_dim": 100,
 	"hv_dim": 50,
 	"load": "save/best"
-}
 

@@ -30,6 +30,9 @@ class PPO(Policy):
         with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json'), 'r') as f:
             cfg = json.load(f)
         self.save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), cfg['save_dir'])
+        print("---")
+        print(self.save_dir)
+        print("---")
         self.save_per_epoch = cfg['save_per_epoch']
         self.update_round = cfg['update_round']
         self.optim_batchsz = cfg['batchsz']
@@ -272,6 +275,7 @@ class PPO(Policy):
             self.save(self.save_dir, epoch)
 
     def save(self, directory, epoch):
+        # print(directory)
         if not os.path.exists(directory):
             os.makedirs(directory)
 

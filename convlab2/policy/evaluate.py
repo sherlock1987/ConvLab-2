@@ -457,10 +457,11 @@ if __name__ == "__main__":
         #  remember to print otherwise you will lose time.
         print(success_rate_record)
         # write this to a same file.
-        f = open(args.log_res_path, 'a+')
-        f.write(args.model_path_root+"\n")
-        f.write(str(success_rate_record)+"\n")
-        f.close()
+        if args.log_res_path:
+            f = open(args.log_res_path, 'a+')
+            f.write(args.model_path_root+"\n")
+            f.write(str(success_rate_record)+"\n")
+            f.close()
 
         axis = [i for i in range(len(success_rate_record))]
         plt.plot(axis, success_rate_record)

@@ -5,8 +5,10 @@ import torch.autograd as autograd
 import torch.nn as nn
 import pdb
 import numpy as np
+import collections
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
 
 class Discriminator(nn.Module):
     def __init__(self):
@@ -37,6 +39,66 @@ class Discriminator(nn.Module):
         prob = self.d_layer_MLP(input_hidden)
         output = self.output_layer(prob)
         return output
+
+    def get_reward(self, r, s, a, mask):
+        """
+        :param r: reward, Tensor, [b]
+        :param mask: indicates ending for 0 otherwise 1, Tensor, [b]
+        :param s: state, Tensor, [b,340]
+        :param a: action, Tensor, [b,209]
+        """
+        reward_predict = []
+        batchsz = r.shape[0]
+        s_temp = tensor([]).to(DEVICE)
+        a_temp = tensor([]).to(DEVICE)
+        reward_collc = []
+        """
+        # store the data for updating
+        data_collc = collections.defaultdict(list)
+        data_sub = []
+        data_reward_collc = collections.defaultdict(list)    
+        """
+        for i in range(batchsz):
+            # current　states and actions
+            s_1 = s[i].unsqueeze(0)
+            a_1 = a[i].unsqueeze(0)
+            try:
+                s_temp = torch.cat((s_temp, s_1), 0)
+                a_temp = torch.cat((a_temp, a_1), 0)
+            except Exception:
+                s_temp = s_1
+                a_temp = a_1
+
+            s_train = s_temp.unsqueeze(0).float()
+            a_train = a_temp.unsqueeze(0).float()
+            input = torch.cat((s_train, a_train), 2)
+            if int(mask[i]) == 0:
+                # for the last one, the reward should follow the system. 5, 40, -1, that's it.
+                last_reward = r[i].item()
+                reward_collc = self.get_socre_d(input)
+                reward_collc[-1] = last_reward
+                # go to bell man
+                # bell_man = self.bellman_equ(reward_collc)
+                reward_predict += reward_collc
+                # clear
+                s_temp = tensor([])
+                a_temp = tensor([])
+                reward_collc = []
+            else:
+                # process the whole stuff.
+                pass
+
+        reward_predict = tensor(reward_predict).to(DEVICE)
+        return reward_predict
+
+    def get_socre_d(self, input):
+        """
+        :param input: [1, D, 549] D:dia len
+        :return: [ r1, r2, r3,...rD ]
+        """
+        score = self.forward(input).squeeze(0).squeeze(-1)
+        reward_score = (score - 0.5).tolist()
+        return reward_score
 
 
     # def batchClassify(self, inp):

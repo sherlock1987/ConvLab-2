@@ -22,7 +22,7 @@ do
     complete_sub_save_path=${root}/"convlab2/policy/ppo/idea4/"${sub_save_path}
     log_path=${root}/"convlab2/policy/ppo/idea4/save/"${time}/res.txt
     echo "${sub_save_path}"
-    sleep $[process_id*20]
+#    sleep $[process_id*10]
     echo '{
 	"batchsz": 32,
 	"gamma": 0.99,
@@ -39,9 +39,8 @@ do
 	"load": "save/best"
 }
 '> ${config_path}
-  python ${RL_path} --load_path ${load_path}
-  echo "${log_path}"
+  python ${RL_path} --load_path ${load_path} --load_path_reward  /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/idea4/GAN1/Dis/pretrain_D.mdl
   python ${Eval_path} --model_name "PPO" --evluate_in_dir True --model_path_root ${complete_sub_save_path} --log_res_path ${log_path}
-  }&
+  }
 done
 wait

@@ -14,7 +14,8 @@ from convlab2.util.file_util import cached_path
 import zipfile
 import sys
 from convlab2.policy.mle.idea9.model_dialogue import dialogue_VAE
-from convlab2.policy.mle.idea2_predict_next_action import Reward_predict
+from convlab2.policy.mle.idea4.GAN1.discriminator import Discriminator
+
 
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 root_dir = "/home/raliegh/图片/ConvLab-2/"
@@ -55,10 +56,7 @@ class PPO(Policy):
             self.policy_optim = optim.RMSprop(self.policy.parameters(), lr=cfg['policy_lr'])
             self.value_optim = optim.Adam(self.value.parameters(), lr=cfg['value_lr'])
 
-        self.reward_predictor = Reward_predict(549, 457, 209)
-
-        self.reward_predictor_idea5 = dialogue_VAE(
-            input_size= 549        )
+        self.reward_predictor_idea4 = Discriminator()
 
     def predict(self, state):
         """
@@ -183,9 +181,18 @@ class PPO(Policy):
         :param a: action, Tensor, [b,209]
         """
         reward_predict = self.reward_predictor_idea5.get_reward(r, s, a, mask)
-        # reward_predict = self.reward_predictor_idea5.get_reward_global(r, s, a, mask, globa_bool = True, global_type = "mask")
-        # reward_predict = self.reward_predictor_idea5.get_reward_global(r, s, a, mask, global_type = "mask")
-        reward_predict = tensor(reward_predict)
+        return reward_predict
+
+    def reward_estimate_idea4(self, r, s, a, mask):
+        """
+        we save a trajectory in continuous space and it reaches the ending of current trajectory when mask=0.
+        :param r: reward, Tensor, [b]
+        :param s: state, Tensor, [b,340]
+        :param a: action, Tensor, [b,209]
+        :param mask: indicates ending for 0 otherwise 1, Tensor, [b]
+
+        """
+        reward_predict = self.reward_predictor_idea4.get_reward(r, s, a, mask)
         return reward_predict
 
     def update(self, epoch, batchsz, s, a, r, mask):
@@ -198,7 +205,7 @@ class PPO(Policy):
         # estimate advantage and v_target according to GAE and Bellman Equation
         # leave the V alone, just forget about it.
         # r = self.reward_estimate(r, s, a, mask)
-        # r = self.reward_estimate_idea5(r,s,a,mask)
+        # r = self.reward_estimate_idea4(r, s, a, mask)
         A_sa, v_target = self.est_adv(r, v, mask)
 
         for i in range(self.update_round):
@@ -325,7 +332,7 @@ class PPO(Policy):
                 break
 
 
-    def load_reward_model_idea5(self, filename):
+    def load_reward_model_idea4(self, filename):
         policy_mdl_candidates = [
             filename,
             filename + '.pol.mdl',
@@ -336,9 +343,9 @@ class PPO(Policy):
         ]
         for policy_mdl in policy_mdl_candidates:
             if os.path.exists(policy_mdl):
-                self.reward_predictor_idea5.load_state_dict(torch.load(policy_mdl, map_location=DEVICE))
-                self.reward_predictor_idea5 = self.reward_predictor_idea5.to(DEVICE)
-                logging.info('<<dialog policy>> loaded reward_idea5 model checkpoint from file: {}'.format(policy_mdl))
+                self.reward_predictor_idea4.load_state_dict(torch.load(policy_mdl, map_location=DEVICE))
+                self.reward_predictor_idea4 = self.reward_predictor_idea4.to(DEVICE)
+                logging.info('<<dialog policy>> loaded reward_idea4 GAN model checkpoint from file: {}'.format(policy_mdl))
                 break
 
 

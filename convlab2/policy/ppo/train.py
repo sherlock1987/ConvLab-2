@@ -3,7 +3,6 @@
 Created on Sun Jul 14 16:14:07 2019
 @author: truthless
 """
-
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import numpy as np
@@ -188,7 +187,7 @@ if __name__ == '__main__':
     #policy_sys.load_reward_model('/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/idea4/bin/idea4.pol.mdl')
     # policy_sys.load_reward_model_idea3(args.load_path_reward)
     policy_sys.load(args.load_path)
-    # policy_sys.load_reward_model_idea5(args.load_path_reward)
+    # policy_sys.load_reward_model_idea4(args.load_path_reward)
 
     # not use dst
     dst_usr = None

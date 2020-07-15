@@ -161,8 +161,8 @@ if __name__ == '__main__':
     # parser.add_argument("--save_path", type=str, default="test_1", help="path of model to save")
     # parser.add_argument("--save_st_path", type = int, default=0, help="sub path of model to save")
     parser.add_argument("--load_path_reward", default="", help="path of model to load from reward machine")
-    parser.add_argument("--batchsz", type=int, default=32, help="batch size of trajactory sampling")
-    parser.add_argument("--epoch", type=int, default=3 , help="number of epochs to train")
+    parser.add_argument("--batchsz", type=int, default=1024, help="batch size of trajactory sampling")
+    parser.add_argument("--epoch", type=int, default=30 , help="number of epochs to train")
     parser.add_argument("--process_num", type=int, default=1, help="number of processes of trajactory sampling")
     args = parser.parse_args()
     # sub_root = "convlab2/policy/ppo/idea4"

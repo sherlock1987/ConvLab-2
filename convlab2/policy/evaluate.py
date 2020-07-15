@@ -449,7 +449,7 @@ if __name__ == "__main__":
                 dataset_name=args.dataset_name,
                 model_name=args.model_name,
                 load_path=model_dir,
-                seed_total= 20,
+                seed_total= 200,
                 calculate_reward=False
             )
             success_rate = np.mean(result["All"])

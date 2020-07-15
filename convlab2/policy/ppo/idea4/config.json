@@ -5,7 +5,7 @@
 	"tau": 0.95,
 	"policy_lr": 0.0001,
 	"value_lr": 0.00005,
-	"save_dir": "save/2020-07-15--16:28:59/4",
+	"save_dir": "save/2020-07-15--16:28:59/5",
 	"log_dir": "log",
 	"save_per_epoch": 1,
 	"update_round": 5,

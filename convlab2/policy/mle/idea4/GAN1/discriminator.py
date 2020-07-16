@@ -75,7 +75,7 @@ class Discriminator(nn.Module):
             if int(mask[i]) == 0:
                 # for the last one, the reward should follow the system. 5, 40, -1, that's it.
                 last_reward = r[i].item()
-                reward_collc = self.get_socre_d(input)
+                reward_collc = self.get_score_d(input)
                 reward_collc[-1] += (last_reward+1)
                 # go to bell man
                 # bell_man = self.bellman_equ(reward_collc)
@@ -91,13 +91,13 @@ class Discriminator(nn.Module):
         reward_predict = tensor(reward_predict).to(DEVICE)
         return reward_predict
 
-    def get_socre_d(self, input):
+    def get_score_d(self, input):
         """
         :param input: [1, D, 549] D:dia len
         :return: [ r1, r2, r3,...rD ]
         """
 
-        score = self.forward(input).squeeze(0).squeeze(-1)
+        score = self.forward(input.to(DEVICE)).squeeze(0).squeeze(-1)
         score = self.score_filter(score, minimum=0.001)
         reward_score = (torch.log(score) - 1).tolist()
         return reward_score

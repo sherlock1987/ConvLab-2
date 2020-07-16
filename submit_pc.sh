@@ -13,7 +13,7 @@ config_path=${root}/"convlab2/policy/ppo/idea4/config.json"
 RL_path=${root}/"convlab2/policy/ppo/train.py"
 load_path=${root}/"convlab2/policy/mle/multiwoz/best_mle"
 Eval_path=${root}/"convlab2/policy/evaluate.py"
-for process_id in $(seq 1 2)
+for process_id in $(seq 1 8)
 do
   {
     # write the config file first.
@@ -39,8 +39,8 @@ do
 	"load": "save/best"
 }
 '> ${config_path}
-  python ${RL_path} --load_path ${load_path}
-#  python ${Eval_path} --model_name "PPO" --evluate_in_dir True --model_path_root ${complete_sub_save_path} --log_res_path ${log_path}
+  python ${RL_path} --load_path ${load_path} --load_path_reward /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/idea4/GAN1/Dis/D_49.mdl
+  python ${Eval_path} --model_name "PPO" --evluate_in_dir True --model_path_root ${complete_sub_save_path} --log_res_path ${log_path}
   }
 done
 wait

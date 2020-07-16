@@ -7,7 +7,6 @@ import torch.nn.functional as F
 
 class HingeLoss(nn.Module):
     """
-    铰链损失
     SVM hinge loss
     L1 loss = sum(max(0,pred-true+1)) / batch_size
     注意： 此处不包含正则化项, 需要另外计算出来 add

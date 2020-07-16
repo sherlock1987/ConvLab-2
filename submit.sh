@@ -9,6 +9,7 @@ root=`pwd`
 echo "${MYDIR}"
 echo "${time}"
 
+
 config_path=${root}/"convlab2/policy/ppo/idea4/config.json"
 RL_path=${root}/"convlab2/policy/ppo/train.py"
 load_path=${root}/"convlab2/policy/mle/multiwoz/best_mle"

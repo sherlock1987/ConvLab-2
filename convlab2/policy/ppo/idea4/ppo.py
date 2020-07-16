@@ -205,7 +205,7 @@ class PPO(Policy):
         # estimate advantage and v_target according to GAE and Bellman Equation
         # leave the V alone, just forget about it.
         # r = self.reward_estimate(r, s, a, mask)
-        r = self.reward_estimate_idea4(r, s, a, mask)
+        # r = self.reward_estimate_idea4(r, s, a, mask)
         A_sa, v_target = self.est_adv(r, v, mask)
 
         for i in range(self.update_round):

@@ -22,8 +22,8 @@ do
     sub_save_path="save"/${time}/${process_id}
     complete_sub_save_path=${root}/"convlab2/policy/ppo/idea4/"${sub_save_path}
     log_path=${root}/"convlab2/policy/ppo/idea4/save/"${time}/res.txt
-    echo "${sub_save_path}"
     sleep $[process_id*20]
+    echo "Begin processing in ${sub_save_path}..."
     echo '{
 	"batchsz": 32,
 	"gamma": 0.99,

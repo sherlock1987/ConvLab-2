@@ -18,7 +18,7 @@ do
     sub_save_path="save"/${time}/${process_id}
     complete_sub_save_path=${root}/"convlab2/policy/ppo/idea4/"${sub_save_path}
     log_path=${root}/"convlab2/policy/ppo/idea4/save/"${time}/res.txt
-    sleep $[process_id*2]
+    sleep $[process_id*20]
     echo "Begin processing in ${sub_save_path}..."
     echo '{
 	"batchsz": 32,
@@ -36,7 +36,7 @@ do
 	"load": "save/best"
 }
 '> ${config_path}
-  CUDA_VISIBLE_DEVICES=3 python ${RL_path} --load_path ${load_path} --load_path_reward_d ${root}/convlab2/policy/mle/idea4/GAN1/Dis/pretrain_D.mdl --load_path_reward_g ${root}/convlab2/policy/mle/idea4/GAN1/Dis/pretrain_G.mdl
+  CUDA_VISIBLE_DEVICES=3 python ${RL_path} --load_path ${load_path} --load_path_reward_d ${root}/convlab2/policy/mle/idea4/GAN1/Dis/pretrain_D.mdl --load_path_reward_g ${root}/convlab2/policy/mle/idea4/GAN1/Gen/pretrain_G.mdl
   echo "${log_path}"
   echo " "
   python ${Eval_path} --model_name "PPO" --evluate_in_dir True --model_path_root ${complete_sub_save_path} --log_res_path ${log_path}

@@ -295,6 +295,7 @@ class PPO(Policy):
         logging.info('<<dialog policy>> epoch {}: saved network to mdl'.format(epoch))
 
     def load(self, filename):
+        flag = 1
         value_mdl_candidates = [
             filename + '.val.mdl',
             filename + '_ppo.val.mdl',
@@ -305,6 +306,7 @@ class PPO(Policy):
             if os.path.exists(value_mdl):
                 self.value.load_state_dict(torch.load(value_mdl, map_location=DEVICE))
                 logging.info('<<dialog policy>> loaded checkpoint from file: {}'.format(value_mdl))
+                flag = 1
                 break
 
         policy_mdl_candidates = [
@@ -317,7 +319,9 @@ class PPO(Policy):
             if os.path.exists(policy_mdl):
                 self.policy.load_state_dict(torch.load(policy_mdl, map_location=DEVICE))
                 logging.info('<<dialog policy>> loaded checkpoint from file: {}'.format(policy_mdl))
+                flag = 1
                 break
+        assert flag==1
 
     def load_reward_model(self, filename):
         policy_mdl_candidates = [
@@ -336,6 +340,7 @@ class PPO(Policy):
 
 
     def load_reward_model_idea4_d(self, filename):
+        flag = 0
         policy_mdl_candidates = [
             filename,
             filename + '.pol.mdl',
@@ -349,9 +354,12 @@ class PPO(Policy):
                 self.reward_predictor_idea4_d.load_state_dict(torch.load(policy_mdl, map_location=DEVICE))
                 self.reward_predictor_idea4_d = self.reward_predictor_idea4_d.to(DEVICE)
                 logging.info('<<dialog policy>> loaded reward_idea4 D model checkpoint from file: {}'.format(policy_mdl))
+                flag = 1
                 break
+        assert flag==1
 
     def load_reward_model_idea4_g(self, filename):
+        flag = 0
         policy_mdl_candidates = [
             filename,
             filename + '.pol.mdl',
@@ -365,8 +373,9 @@ class PPO(Policy):
                 self.reward_predictor_idea4_g.load_state_dict(torch.load(policy_mdl, map_location=DEVICE))
                 self.reward_predictor_idea4_g = self.reward_predictor_idea4_g.to(DEVICE)
                 logging.info('<<dialog policy>> loaded reward_idea4 G model checkpoint from file: {}'.format(policy_mdl))
+                flag = 1
                 break
-
+        assert flag==1
 
     def load_from_pretrained(self, archive_file, model_file, filename):
         if not os.path.isfile(archive_file):

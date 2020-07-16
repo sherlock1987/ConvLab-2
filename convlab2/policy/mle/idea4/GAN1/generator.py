@@ -329,6 +329,6 @@ class Generator(nn.Module):
             left = prob_a[i].unsqueeze(0)
             right = real_a[i].unsqueeze(-1)
             product = torch.matmul(left, right)
-            reward.append(product.item() - 1)
+            reward.append(product.item()*10 - 1)
 
         return reward

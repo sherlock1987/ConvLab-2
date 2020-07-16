@@ -104,6 +104,7 @@ class Discriminator(nn.Module):
 
     def get_socre_g(self, input):
         """
+        from generator to get the reward function.
         :param input: [1, D, 549] D:dia len
         :return: [ r1, r2, r3,...rD ]
         """

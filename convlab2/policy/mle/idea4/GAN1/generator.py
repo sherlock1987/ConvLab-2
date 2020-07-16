@@ -15,6 +15,7 @@ tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
 
 class Generator(nn.Module):
     def __init__(self,  hidden_size, output_size, bf_inp_size = 340, a_inp_size = 209, gpu=False):
+        # Todo make this looks a little good.
         super(Generator, self).__init__()
         self.hidden_size = hidden_size
         self.output_size = output_size
@@ -108,9 +109,9 @@ class Generator(nn.Module):
 
     def forward_bf(self, bf, tau = 0.8):
         """
-        :param prev_list: list of tensors: [[ 1, 1, 549], [ 1, 2, 549]]
-        :param hidden:
-        :return: the　pro of this stuff. Very close to one hot.
+        :param bf: [B, 340]
+        :param tau: for gumbel softmax
+        :return: prob of current act
         """
         """
         # half-half method, not so good.
@@ -127,7 +128,7 @@ class Generator(nn.Module):
         one = self.bf_layer(input).unsqueeze(-1)
         two = self.bf_plus(one)
         two = F.gumbel_softmax(two, tau = tau)
-        final = two[0,:,:,0].unsqueeze(0)
+        final = two[0, :, :, 0].unsqueeze(0)
         return final
 
     def forward_embedding(self, prev_list, bf):
@@ -265,3 +266,69 @@ class Generator(nn.Module):
 
         return loss/batch_size
 
+    def get_reward(self, r, s, a, mask):
+        """
+        :param r: reward, Tensor, [b]
+        :param mask: indicates ending for 0 otherwise 1, Tensor, [b]
+        :param s: state, Tensor, [b,340]
+        :param a: action, Tensor, [b,209]
+        """
+        reward_predict = []
+        batchsz = r.shape[0]
+        s_temp = tensor([]).to(DEVICE)
+        a_temp = tensor([]).to(DEVICE)
+        reward_collc = []
+        """
+        # store the data for updating
+        data_collc = collections.defaultdict(list)
+        data_sub = []
+        data_reward_collc = collections.defaultdict(list)    
+        """
+        for i in range(batchsz):
+            # current　states and actions
+            s_1 = s[i].unsqueeze(0)
+            a_1 = a[i].unsqueeze(0)
+            try:
+                s_temp = torch.cat((s_temp, s_1), 0)
+                a_temp = torch.cat((a_temp, a_1), 0)
+            except Exception:
+                s_temp = s_1
+                a_temp = a_1
+
+            s_train = s_temp.unsqueeze(0).float()
+            a_train = a_temp.unsqueeze(0).float()
+            if int(mask[i]) == 0:
+                # for the last one, the reward should follow the system. 5, 40, -1, that's it.
+                last_reward = r[i].item()
+                reward_collc = self.get_score_g(s_train, a_train, tau=0.8)
+                reward_collc[-1] += (last_reward+1)
+                reward_predict += reward_collc
+                # clear
+                s_temp = tensor([])
+                a_temp = tensor([])
+                reward_collc = []
+            else:
+                # process the whole stuff.
+                pass
+
+        reward_predict = tensor(reward_predict).to(DEVICE)
+        return reward_predict
+
+    def get_score_g(self, input_bf, input_a, tau):
+        """
+        :param input: [ D, 340]
+        :return:
+        """
+        # []
+        assert input_bf.size(1)==input_a.size(1)
+        prob_a = self.forward_bf(input_bf, tau=0.8)
+        prob_a = prob_a.squeeze(0)
+        real_a = input_a.clone().squeeze(0)
+        reward = []
+        for i in range(prob_a.size(0)):
+            left = prob_a[i].unsqueeze(0)
+            right = real_a[i].unsqueeze(-1)
+            product = torch.matmul(left, right)
+            reward.append(product.item() - 1)
+
+        return reward

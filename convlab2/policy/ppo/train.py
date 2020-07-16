@@ -91,7 +91,6 @@ def sampler(pid, queue, evt, env, policy, batchsz):
     queue.put([pid, buff])
     evt.wait()
 
-
 def sample(env, policy, batchsz, process_num):
     """
     Given batchsz number of task, the batchsz will be splited equally to each processes
@@ -138,7 +137,6 @@ def sample(env, policy, batchsz, process_num):
 
     return buff.get_batch()
 
-
 def update(env, policy, batchsz, epoch, process_num):
     # sample data asynchronously
     batch = sample(env, policy, batchsz, process_num)
@@ -153,13 +151,13 @@ def update(env, policy, batchsz, epoch, process_num):
     batchsz_real = s.size(0)
     policy.update(epoch, batchsz_real, s, a, r, mask)
 
-
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("--load_path", type=str, default="", help="path of model to load")
     # parser.add_argument("--save_path", type=str, default="test_1", help="path of model to save")
     # parser.add_argument("--save_st_path", type = int, default=0, help="sub path of model to save")
-    parser.add_argument("--load_path_reward", default="", help="path of model to load from reward machine")
+    parser.add_argument("--load_path_reward_d", default="", help="path of model to load from reward machine")
+    parser.add_argument("--load_path_reward_g", default="", help="path of model to load from reward machine")
     parser.add_argument("--batchsz", type=int, default=1024, help="batch size of trajactory sampling")
     parser.add_argument("--epoch", type=int, default=30 , help="number of epochs to train")
     parser.add_argument("--process_num", type=int, default=1, help="number of processes of trajactory sampling")
@@ -187,7 +185,9 @@ if __name__ == '__main__':
     #policy_sys.load_reward_model('/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/idea4/bin/idea4.pol.mdl')
     # policy_sys.load_reward_model_idea3(args.load_path_reward)
     policy_sys.load(args.load_path)
-    policy_sys.load_reward_model_idea4(args.load_path_reward)
+    policy_sys.load_reward_model_idea4_d(args.load_path_reward_d)
+    policy_sys.load_reward_model_idea4_g(args.load_path_reward_g)
+    # should load three models.
 
     # not use dst
     dst_usr = None
@@ -207,7 +207,7 @@ How to add idea_x?
 args:
 --load_path /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle --load_path_reward /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/save/idea1_model/idea_3_descriminator.mdl
 idea4 model
---load_path /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle --load_path_reward /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/idea4/idea4.pol.mdl
+--load_path /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle --load_path_reward_d /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/idea4/GAN1/Dis/pretrain_D.mdl --load_path_reward_g /home/raliegh/图片/ConvLab-2/convlab2/policy/mle/idea4/GAN1/Gen/pretrain_G.mdl
 
 then add init stuff in ppo.init
 then add reward function in ppo, implement it in ppo.upgrade. # A_sa, v_target = self.est_adv(r, v, mask)

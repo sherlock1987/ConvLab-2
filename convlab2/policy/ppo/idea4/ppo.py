@@ -16,6 +16,7 @@ import zipfile
 import sys
 from convlab2.policy.mle.idea9.model_dialogue import dialogue_VAE
 from convlab2.policy.mle.idea4.GAN1.discriminator import Discriminator
+from convlab2.policy.mle.idea4.GAN1.generator import Generator
 
 
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
@@ -56,7 +57,8 @@ class PPO(Policy):
             self.policy_optim = optim.RMSprop(self.policy.parameters(), lr=cfg['policy_lr'])
             self.value_optim = optim.Adam(self.value.parameters(), lr=cfg['value_lr'])
 
-        self.reward_predictor_idea4 = Discriminator()
+        self.reward_predictor_idea4_d = Discriminator()
+        self.reward_predictor_idea4_g = Generator(549, 209)
 
     def predict(self, state):
         """
@@ -185,15 +187,16 @@ class PPO(Policy):
 
     def reward_estimate_idea4(self, r, s, a, mask):
         """
-        we save a trajectory in continuous space and it reaches the ending of current trajectory when mask=0.
+        get reward from G and D.
         :param r: reward, Tensor, [b]
         :param s: state, Tensor, [b,340]
         :param a: action, Tensor, [b,209]
         :param mask: indicates ending for 0 otherwise 1, Tensor, [b]
-
         """
-        reward_predict = self.reward_predictor_idea4.get_reward(r, s, a, mask)
-        return reward_predict
+        # reward_predict_d = self.reward_predictor_idea4_d.get_reward(r, s, a, mask)
+        reward_predict_g = self.reward_predictor_idea4_g.get_reward(r, s, a, mask)
+        # reward_predict = (reward_predict_d+reward_predict_g)/2
+        return reward_predict_g
 
     def update(self, epoch, batchsz, s, a, r, mask):
         # get estimated V(s) and PI_old(s, a)
@@ -332,7 +335,7 @@ class PPO(Policy):
                 break
 
 
-    def load_reward_model_idea4(self, filename):
+    def load_reward_model_idea4_d(self, filename):
         policy_mdl_candidates = [
             filename,
             filename + '.pol.mdl',
@@ -343,9 +346,25 @@ class PPO(Policy):
         ]
         for policy_mdl in policy_mdl_candidates:
             if os.path.exists(policy_mdl):
-                self.reward_predictor_idea4.load_state_dict(torch.load(policy_mdl, map_location=DEVICE))
-                self.reward_predictor_idea4 = self.reward_predictor_idea4.to(DEVICE)
-                logging.info('<<dialog policy>> loaded reward_idea4 GAN model checkpoint from file: {}'.format(policy_mdl))
+                self.reward_predictor_idea4_d.load_state_dict(torch.load(policy_mdl, map_location=DEVICE))
+                self.reward_predictor_idea4_d = self.reward_predictor_idea4_d.to(DEVICE)
+                logging.info('<<dialog policy>> loaded reward_idea4 D model checkpoint from file: {}'.format(policy_mdl))
+                break
+
+    def load_reward_model_idea4_g(self, filename):
+        policy_mdl_candidates = [
+            filename,
+            filename + '.pol.mdl',
+            filename + '_pg.pol.mdl',
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), filename),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), filename + '.pol.mdl'),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), filename + '_pg.pol.mdl')
+        ]
+        for policy_mdl in policy_mdl_candidates:
+            if os.path.exists(policy_mdl):
+                self.reward_predictor_idea4_g.load_state_dict(torch.load(policy_mdl, map_location=DEVICE))
+                self.reward_predictor_idea4_g = self.reward_predictor_idea4_g.to(DEVICE)
+                logging.info('<<dialog policy>> loaded reward_idea4 G model checkpoint from file: {}'.format(policy_mdl))
                 break
 
 

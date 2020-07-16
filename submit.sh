@@ -39,9 +39,10 @@ do
 	"load": "save/best"
 }
 '> ${config_path}
-  python ${RL_path} --load_path ${load_path} --load_path_reward ${root}/convlab2/policy/mle/idea4/GAN1/Dis/pretrain_D.mdl
+  python ${RL_path} --load_path ${load_path} --load_path_reward ${root}/convlab2/policy/mle/idea4/GAN1/Dis/G_49.mdl
   echo "${log_path}"
   python ${Eval_path} --model_name "PPO" --evluate_in_dir True --model_path_root ${complete_sub_save_path} --log_res_path ${log_path}
   }&
 done
 wait
+

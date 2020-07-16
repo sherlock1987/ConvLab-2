@@ -76,7 +76,7 @@ class Discriminator(nn.Module):
                 # for the last one, the reward should follow the system. 5, 40, -1, that's it.
                 last_reward = r[i].item()
                 reward_collc = self.get_socre_d(input)
-                reward_collc[-1] = last_reward
+                reward_collc[-1] += (last_reward+1)
                 # go to bell man
                 # bell_man = self.bellman_equ(reward_collc)
                 reward_predict += reward_collc
@@ -96,10 +96,33 @@ class Discriminator(nn.Module):
         :param input: [1, D, 549] D:dia len
         :return: [ r1, r2, r3,...rD ]
         """
+
         score = self.forward(input).squeeze(0).squeeze(-1)
-        reward_score = (score - 0.5).tolist()
+        score = self.score_filter(score, minimum=0.001)
+        reward_score = (torch.log(score) - 1).tolist()
         return reward_score
 
+    def get_socre_g(self, input):
+        """
+        :param input: [1, D, 549] D:dia len
+        :return: [ r1, r2, r3,...rD ]
+        """
+
+        score = self.forward(input).squeeze(0).squeeze(-1)
+        score = self.score_filter(score)
+        reward_score = (torch.log(score) - 1).tolist()
+        return reward_score
+
+    def score_filter(self, score, minimum = 0.00001):
+        """
+        :param score:
+        :return: after filter
+        """
+        for i in range(score.size(0)):
+            tiny = score[i]
+            if tiny < minimum:
+                score[i] = minimum
+        return score
 
     # def batchClassify(self, inp):
     #     """

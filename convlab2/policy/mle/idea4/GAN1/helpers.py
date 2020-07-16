@@ -34,6 +34,28 @@ def prepare_generator_batch(samples, start_letter=0, gpu=False):
 
     return inp, target
 
+def filter(pos_samples, neg_samples):
+    """
+    :param pos_samples:
+    :param neg_samples:
+    :return: fiter the same [bf: act] pair
+    """
+    # first size is same.
+    num_samples = pos_samples.size(1)
+    pos_samples = pos_samples.squeeze(0)
+    neg_samples = neg_samples.squeeze(0)
+    list_stay = []
+    for i in range(num_samples):
+        pos_tiny = pos_samples[i]
+        neg_tiny = neg_samples[i]
+        if torch.equal(pos_tiny, neg_tiny):
+        #     print("find same, extinguish in neg")
+            pass
+        else:
+            list_stay.append(i)
+    neg_samples = neg_samples[list_stay].unsqueeze(0)
+    pos_samples = pos_samples.unsqueeze(0)
+    return pos_samples, neg_samples
 
 def prepare_discriminator_data(pos_samples, neg_samples, ratio_pos, ratio_neg, gpu=False):
     """
@@ -44,6 +66,9 @@ def prepare_discriminator_data(pos_samples, neg_samples, ratio_pos, ratio_neg, g
     :return: random samples and target(1, 0)
     """
     # get number for each case.
+    pos_samples, neg_samples = filter(pos_samples, neg_samples)
+    # stay same number
+    pos_samples = pos_samples[0][:neg_samples.size(1)].unsqueeze(0)
     if ratio_pos > ratio_neg:
         # 1 : 0.9
         pos_num = pos_samples.size(1)
@@ -61,7 +86,6 @@ def prepare_discriminator_data(pos_samples, neg_samples, ratio_pos, ratio_neg, g
     pos_samples_clone = pos_samples_clone[0][:pos_num].unsqueeze(0)
     neg_samples_clone = neg_samples.clone()
     neg_samples_clone = neg_samples_clone[0][:neg_num].unsqueeze(0)
-
     inp = torch.cat((pos_samples_clone, neg_samples_clone), 1).type(torch.LongTensor)
     target = torch.ones(pos_samples_clone.size(1) + neg_samples_clone.size(1))
     # [real : fake] = [1 : 0]

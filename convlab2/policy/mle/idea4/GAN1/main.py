@@ -302,7 +302,7 @@ def train_discriminator(discriminator, dis_opt, real_data_samples, generator, sa
         loss_fn = nn.MSELoss(reduction = "sum")
         for epoch in range(epochs):
             discriminator.train()
-            print('d-step %d epoch %d : ' % (d_step + 1, epoch + 1), end='')
+            print('Sample %d data, d-step %d epoch %d : ' % (train_inp.size(1), d_step + 1, epoch + 1), end='')
             sys.stdout.flush()
             # empty clip
             total_loss = 0
@@ -480,7 +480,7 @@ if __name__ == '__main__':
         # TRAIN GENERATOR
         print('\nAdversarial Training Generator : ')
         sys.stdout.flush()
-        train_generator_PG(gen, dis, datasets, num_samples = 30000, epochs=5)
+        train_generator_PG(gen, dis, datasets, num_samples = 30000, epochs=7)
         torch.save(gen.state_dict(), os.path.join(pretrained_gen_path, "G_{}.mdl".format(epoch)))
 
         # TRAIN DISCRIMINATOR

@@ -9,7 +9,6 @@ root=`pwd`
 echo "${MYDIR}"
 echo "${time}"
 
-
 config_path=${root}/"convlab2/policy/ppo/idea4/config.json"
 RL_path=${root}/"convlab2/policy/ppo/train.py"
 load_path=${root}/"convlab2/policy/mle/multiwoz/best_mle"
@@ -40,7 +39,7 @@ do
 	"load": "save/best"
 }
 '> ${config_path}
-  python ${RL_path} --load_path ${load_path} --load_reward_path ${root}/convlab2/policy/mle/idea4/GAN1/Dis/pretrain_D.mdl
+  python ${RL_path} --load_path ${load_path} --load_path_reward ${root}/convlab2/policy/mle/idea4/GAN1/Dis/pretrain_D.mdl
   echo "${log_path}"
   python ${Eval_path} --model_name "PPO" --evluate_in_dir True --model_path_root ${complete_sub_save_path} --log_res_path ${log_path}
   }&

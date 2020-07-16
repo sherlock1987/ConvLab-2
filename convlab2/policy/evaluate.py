@@ -429,8 +429,6 @@ if __name__ == "__main__":
                         help="whether to evluate the model from one directory")
     parser.add_argument("--model_path_root", type=str, default="", help="root path which contains many models")
     args = parser.parse_args()
-    print(args)
-
     init_logging(log_dir_path=args.log_dir_path, path_suffix=args.log_path_suffix)
     success_rate_record = []
     if not args.evluate_in_dir:

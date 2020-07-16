@@ -3,7 +3,7 @@
 #1.1 write stuff to config file
 #2. evaluation.py ts write down the result into the same file
 #3. note the process_num
-CUDA_VISIBLE_DEVICES=0
+CUDA_VISIBLE_DEVICES=1
 time=$(date "+%Y-%m-%d--%H:%M:%S")
 root=`pwd`
 echo "${MYDIR}"
@@ -41,6 +41,7 @@ do
 '> ${config_path}
   python ${RL_path} --load_path ${load_path} --load_path_reward ${root}/convlab2/policy/mle/idea4/GAN1/Dis/G_49.mdl
   echo "${log_path}"
+  echo " "
   python ${Eval_path} --model_name "PPO" --evluate_in_dir True --model_path_root ${complete_sub_save_path} --log_res_path ${log_path}
   }&
 done

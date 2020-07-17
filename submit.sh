@@ -37,7 +37,7 @@ do
 	"load": "save/best"
 }
 '> ${config_path}
-  sed -i '155d' draft_insert.py
+  sed -i '155d' ${RL_path}
   sed -i "155i seed=${process_id}" ${RL_path}
   CUDA_VISIBLE_DEVICES=${device} python ${RL_path} --load_path ${load_path} --load_path_reward_d ${root}/convlab2/policy/mle/idea4/GAN1/Dis/pretrain_D.mdl --load_path_reward_g ${root}/convlab2/policy/mle/idea4/GAN1/Gen/pretrain_G.mdl
   echo "${log_path}"

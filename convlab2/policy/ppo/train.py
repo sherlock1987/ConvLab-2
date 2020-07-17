@@ -152,7 +152,8 @@ def update(env, policy, batchsz, epoch, process_num):
     policy.update(epoch, batchsz_real, s, a, r, mask)
 
 # set seed, do not change the line stuff.
-seed = 1
+seed=2
+
 torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
@@ -171,7 +172,7 @@ if __name__ == '__main__':
     parser.add_argument("--load_path_reward_d", default="", help="path of model to load from reward machine")
     parser.add_argument("--load_path_reward_g", default="", help="path of model to load from reward machine")
     parser.add_argument("--batchsz", type=int, default=1024, help="batch size of trajactory sampling")
-    parser.add_argument("--epoch", type=int, default=30 , help="number of epochs to train")
+    parser.add_argument("--epoch", type=int, default=40 , help="number of epochs to train")
     parser.add_argument("--process_num", type=int, default=1, help="number of processes of trajactory sampling")
     args = parser.parse_args()
     # sub_root = "convlab2/policy/ppo/idea4"

@@ -1,5 +1,5 @@
-# todo: analysis the file
 import sys, os
+import json
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 import numpy as np
 import torch
@@ -7,16 +7,26 @@ from argparse import ArgumentParser
 import pandas as pd
 from pandas.core.frame import DataFrame
 
-# root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 parser = ArgumentParser()
-parser.add_argument("--path", type=str, default="", help="path of analysis")
+# /home/raliegh/图片/ConvLab-2/convlab2/policy/ppo/idea4/save/idea4/res.txt
+parser.add_argument("--log_res_path", type=str, default="", help="path of txt file")
 args = parser.parse_args()
 
-res_path = args.path
-# write this to xls with a name.
-tiny = [0.619375, 0.65375, 0.6906249999999999, 0.7024999999999999, 0.723125, 0.725625, 0.7374999999999999, 0.739375, 0.75, 0.751875, 0.755, 0.75, 0.7531249999999999, 0.750625, 0.75, 0.753125, 0.7549999999999999, 0.75, 0.746875, 0.74375, 0.74125, 0.73625, 0.73875, 0.738125, 0.7381249999999999, 0.7368750000000001, 0.73625, 0.74, 0.7293749999999999, 0.7387500000000001]
-data_df = DataFrame(tiny)
-print(data_df)
-writer = pd.ExcelWriter('test.xlsx')
-data_df.to_excel(writer,'page_1', float_format='%.3f') # float_format 控制精度
-writer.save()
+res_path = args.log_res_path
+data = []
+for line in open(res_path):
+    if line[0] == "[":
+        data_json = json.loads(line)
+        data.append(data_json)
+    else:
+        pass
+baseline_np = np.array(data)
+mean = list(np.mean(baseline_np, axis = 0))
+print((mean))
+# start writing
+f = open(args.log_res_path, 'a+')
+f.write("Mean result:" + "\n")
+f.write(str(mean) + "\n")
+f.close()
+# start write result to txt file.
+

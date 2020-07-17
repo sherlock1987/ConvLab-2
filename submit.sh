@@ -12,6 +12,7 @@ config_path=${root}/"convlab2/policy/ppo/idea4/config.json"
 RL_path=${root}/"convlab2/policy/ppo/train.py"
 load_path=${root}/"convlab2/policy/mle/multiwoz/best_mle"
 Eval_path=${root}/"convlab2/policy/evaluate.py"
+Anal_path=${root}/"convlab2/policy/result_analysis.py"
 for process_id in $(seq 1 8)
 do
   {
@@ -43,3 +44,4 @@ do
   }&
 done
 wait
+python ${Anal_path} --log_res_path ${log_path}

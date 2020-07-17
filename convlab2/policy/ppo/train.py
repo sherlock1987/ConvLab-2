@@ -151,6 +151,18 @@ def update(env, policy, batchsz, epoch, process_num):
     batchsz_real = s.size(0)
     policy.update(epoch, batchsz_real, s, a, r, mask)
 
+# set seed, do not change the line stuff.
+seed = 1
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+np.random.seed(seed)  # Numpy module.
+random.seed(seed)  # Python random module.
+torch.manual_seed(seed)
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
+
+print("current seed is {}".format(seed))
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument("--load_path", type=str, default="", help="path of model to load")
@@ -167,15 +179,7 @@ if __name__ == '__main__':
     # print(save_path)
     # if not os.path.exists(save_path): os.makedirs(save_path)
 
-    # seed = 1
-    # torch.manual_seed(seed)
-    # torch.cuda.manual_seed(seed)
-    # torch.cuda.manual_seed_all(seed)
-    # np.random.seed(seed)  # Numpy module.
-    # random.seed(seed)  # Python random module.
-    # torch.manual_seed(seed)
-    # torch.backends.cudnn.benchmark = False
-    # torch.backends.cudnn.deterministic = True
+
 
     # simple rule DST
     dst_sys = RuleDST()

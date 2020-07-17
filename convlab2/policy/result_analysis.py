@@ -9,7 +9,7 @@ from pandas.core.frame import DataFrame
 
 parser = ArgumentParser()
 # /home/raliegh/图片/ConvLab-2/convlab2/policy/ppo/idea4/save/idea4/res.txt
-parser.add_argument("--log_res_path", type=str, default="", help="path of txt file")
+parser.add_argument("--log_res_path", type=str, default="/home/raliegh/图片/ConvLab-2/convlab2/policy/ppo/idea4/save/2020-07-17--15:31:11/res.txt", help="path of txt file")
 args = parser.parse_args()
 
 res_path = args.log_res_path

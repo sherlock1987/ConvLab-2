@@ -1,0 +1,7 @@
+import random
+
+
+
+
+random.seed(seed)
+print(random.randint(a = 1, b=3))

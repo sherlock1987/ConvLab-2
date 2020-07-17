@@ -1,3 +1,4 @@
+
 a = [[['Inform', 'Train', 'Choice', 'over 1'], ['Inform', 'Train', 'Choice', '000'], ['Request', 'Train', 'Depart', '?']],
 [['Inform', 'Train', 'Depart', 'birmingham new street']],
 [['Request', 'Train', 'Day', '?']],

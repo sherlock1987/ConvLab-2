@@ -26,6 +26,8 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 assert device != "cuda"
 import time
+import collections
+
 # set  seed
 seed = 1
 torch.manual_seed(seed)
@@ -44,8 +46,8 @@ MAX_SEQ_LEN = 20
 START_LETTER = 0
 BATCH_SIZE_G = 32
 BATCH_SIZE_D = 32
-MLE_TRAIN_EPOCHS = 30
-ADV_TRAIN_EPOCHS = 50
+MLE_TRAIN_EPOCHS = 50
+ADV_TRAIN_EPOCHS = 100
 
 GEN_EMBEDDING_DIM = 32
 GEN_HIDDEN_DIM = 32
@@ -54,6 +56,7 @@ dis_lr = 1e-3
 
 DIS_EMBEDDING_DIM = 64
 DIS_HIDDEN_DIM = 64
+tracker = collections.defaultdict(list)
 # path stuff
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 data_path = os.path.join(root_dir, "mle/processed_data")
@@ -86,8 +89,8 @@ def train_generator_MLE(gen, gen_opt, real_data_samples, epochs = 10):
     4. No sample, since this is MLE training process.
     5. 30 epoch seems not enough. the loss is still going downer
     """
-    seq_train = ["train", "val", "test"]
-    # seq_train = ["val", "train", "test"]
+    # seq_train = ["train", "val", "test"]
+    seq_train = ["val", "train", "test"]
     for epoch in range(epochs):
         gen.train()
         print('epoch %d : ' % (epoch + 1), end='')
@@ -123,14 +126,18 @@ def train_generator_MLE(gen, gen_opt, real_data_samples, epochs = 10):
                 sys.stdout.flush()
         total_loss = total_loss / float(iteration)
         print('average_train_Loss = %.4f' % (total_loss), end="   ")
-
+        """
+        Validation part:
+        Evaluation: minus, product, average action.
+        val_eval- = 2.4540, val_eval* = 761.4751 (2.56 act)
+        
+        """
         # do validation loss over here.
         gen.eval()
         sys.stdout.flush()
         prev_list = []
         bf_temp = tensor([])
         target_temp = tensor([])
-        real_data_samples["val"] = real_data_samples["val"][:3]
         for iteration, ele in enumerate(real_data_samples["val"]):
             # from here to get input, and target.
             prev, bf, target = real_data_samples["val"][iteration]
@@ -150,33 +157,30 @@ def train_generator_MLE(gen, gen_opt, real_data_samples, epochs = 10):
         target_score = target_score.item() / float(iteration)
         print('val_eval- = %.4f, val_eval* = %.4f (%.2f act)' % (val_eval_1, val_eval_2, target_score))
 
-    # # test
-    # gen.eval()
-    # # set clip
-    # sys.stdout.flush()
-    # total_loss = 0
-    # prev_list = []
-    # bf_temp = tensor([])
-    # target_temp = tensor([]).to(DEVICE)
-    # for iteration, ele in enumerate(real_data_samples["test"]):
-    #     # from here to get input, and target.
-    #     prev, bf, target = real_data_samples["test"][iteration]
-    #     prev_list.append(prev.to(DEVICE))
-    #     bf_temp = torch.cat((bf_temp, bf.to(DEVICE)), dim=1)
-    #     target_temp = torch.cat((target_temp, target.to(DEVICE)), dim=1)
-    #
-    #     if len(prev_list) == BATCH_SIZE_G:
-    #         gen_opt.zero_grad()
-    #         loss = gen.batchEVAL(prev_list,bf_temp, target_temp)
-    #         total_loss += loss.data.item()
-    #
-    #         # empty the clip
-    #         prev_list = []
-    #         bf_temp = tensor([])
-    #         target_temp = tensor([])
-    #
-    # total_loss = total_loss / float(iteration)
-    # print('average_test_Loss = %.4f' % (total_loss))
+    # do test loss over here.
+    gen.eval()
+    sys.stdout.flush()
+    prev_list = []
+    bf_temp = tensor([])
+    target_temp = tensor([])
+    for iteration, ele in enumerate(real_data_samples["test"]):
+        # from here to get input, and target.
+        prev, bf, target = real_data_samples["test"][iteration]
+        prev_list.append(prev.to(DEVICE))
+        bf_temp = torch.cat((bf_temp, bf.to(DEVICE)), dim=1)
+        target_temp = torch.cat((target_temp, target.to(DEVICE)), dim=1)
+
+    target_score = torch.sum(target_temp)
+    val_eval_1, val_eval_2 = gen.batchEVAL(prev_list, bf_temp, target_temp)
+    # empty the clip
+    prev_list = []
+    bf_temp = tensor([])
+    target_temp = tensor([])
+
+    val_eval_1 = val_eval_1.item() / float(iteration)
+    val_eval_2 = val_eval_2.item() / float(iteration)
+    target_score = target_score.item() / float(iteration)
+    print('test_eval- = %.4f, test_eval* = %.4f (%.2f act)' % (val_eval_1, val_eval_2, target_score))
 
 def train_generator_PG(gen, dis, real_data_samples, G_D_lr = 1e-4, num_samples = 5000, num_val_sample = 2000, epochs=10):
     """
@@ -427,7 +431,79 @@ def train_discriminator(discriminator, dis_opt, real_data_samples, generator, sa
                 val_eval /= (num_val_sample + num_val_sample*(ratio_pos /ratio_neg))/10
 
             print('Train: loss = %.4f, eval = %.4f, pos:neg=[%.2f : %.2f]    Val: loss = %.4f, eval = %.4f, pos:neg=[%.2f : %.2f]' % (total_loss, total_eval, total_pos_pred, total_neg_pred, loss_val, val_eval, val_pos_pred, val_neg_pred))
-        # Todo: do test over here.
+
+def test_g_d(gen, dis, real_data_samples):
+    """
+    :param gen: current G
+    :param dis: current D
+    :param real_data_samples: test data, all of them.
+    :return: score of G(batchEVAL) and D(score)
+    """
+    gen.eval()
+    sys.stdout.flush()
+    prev_list = []
+    bf_temp = tensor([])
+    target_temp = tensor([])
+    for iteration, ele in enumerate(real_data_samples["test"]):
+        # from here to get input, and target.
+        prev, bf, target = real_data_samples["test"][iteration]
+        prev_list.append(prev.to(DEVICE))
+        bf_temp = torch.cat((bf_temp, bf.to(DEVICE)), dim=1)
+        target_temp = torch.cat((target_temp, target.to(DEVICE)), dim=1)
+
+    target_score = torch.sum(target_temp)
+    val_eval_1, val_eval_2 = gen.batchEVAL(prev_list, bf_temp, target_temp)
+    # empty the clip
+    prev_list = []
+    bf_temp = tensor([])
+    target_temp = tensor([])
+
+    val_eval_1 = val_eval_1.item() / float(iteration)
+    val_eval_2 = val_eval_2.item() / float(iteration)
+    target_score = target_score.item() / float(iteration)
+    tracker["test_eval-"].append(val_eval_1)
+    tracker["test_eval*"].append(val_eval_2)
+    tracker["average_act"].append(target_score)
+    print('TEST: G: test_eval- = %.4f, test_eval* = %.4f (%.2f act)' % (val_eval_1, val_eval_2, target_score), end = "  ")
+
+    # testing D
+    test_pos_pred = 0
+    test_neg_pred = 0
+    ratio_pos = 1.
+    ratio_neg = 1.
+    loss_fn = nn.MSELoss(reduction = "sum")
+    dis.eval()
+    sample_oracle_data = oracle_sample(real_data_samples["test"], len(real_data_samples["test"]))
+    pos_val, neg_val = gen.sample(sample_oracle_data)
+    test_inp, test_target = prepare_discriminator_data(pos_val, neg_val, ratio_pos, ratio_neg, gpu=CUDA)
+    # do loss again
+    test_target = test_target.unsqueeze(0).unsqueeze(-1).view(1, -1, 1)
+    test_pred = dis(test_inp.float())
+    loss_test = loss_fn(test_pred, test_target).item()
+    loss_test /= test_inp.size(1)
+
+    test_eval = torch.abs(torch.sum(test_pred - test_target)).item()
+    test_eval /= test_inp.size(1)/10
+    # check for + and -
+    for i in range(test_target.size(1)):
+        out_1 = test_pred[0][i].item()
+        tar_1 = test_target[0][i].item()
+        if tar_1 > 0.5 and out_1 > 0.5:
+            test_pos_pred += 1
+        elif tar_1 < 0.5 and out_1 < 0.5:
+            test_neg_pred += 1
+        else:
+            pass
+
+    test_pos_pred /= (test_inp.size(1)/2)
+    test_neg_pred /= (test_inp.size(1)/2)
+
+    tracker["d_loss"].append(loss_test)
+    tracker["d_eval"].append(test_eval)
+    tracker["d_pos"].append(test_pos_pred)
+    tracker["d_neg"].append(test_neg_pred)
+
+    print('D: sample %d data, loss = %.4f, eval = %.4f, pos:neg=[%.2f : %.2f]' % (test_inp.size(1), loss_test, test_eval, test_pos_pred, test_neg_pred))
 
 # MAIN
 if __name__ == '__main__':
@@ -485,5 +561,10 @@ if __name__ == '__main__':
 
         # TRAIN DISCRIMINATOR
         print('\nAdversarial Training Discriminator : ')
-        train_discriminator(dis, dis_optimizer, datasets, gen, sample_num=10000, ratio_pos=1.1, ratio_neg=1.0, d_steps=3, epochs=5)
+        train_discriminator(dis, dis_optimizer, datasets, gen, sample_num=50000, ratio_pos=1.1, ratio_neg=1.0, d_steps=3, epochs=10)
         torch.save(dis.state_dict(), os.path.join(pretrained_dis_path, "D_{}.mdl".format(epoch)))
+        print()
+        test_g_d(gen, dis, real_data_samples=datasets)
+
+    print("Good Luck !!!")
+    print(tracker)

@@ -46,5 +46,5 @@ do
   }&
 done
 wait
-sleep $[10]
+sleep $[200]
 python ${Anal_path} --log_res_path ${log_path}

@@ -235,10 +235,16 @@ class Generator(nn.Module):
         a = torch.where(action_prob > 0.5, one, action_prob)
         a = torch.where(a < 0.5, zero, a)
         test_loss_soft = torch.sum(torch.abs(a - target.to("cuda"))).to("cuda")
-        a_1 = a.squeeze(0)
-        t_1 = torch.transpose(target, 1, -1).squeeze(0)
-        test_loss_hard = torch.sum(torch.matmul(a_1, t_1))
-        return test_loss_soft, test_loss_hard
+        # product
+        a = a.squeeze(0)
+        t = target.squeeze(0)
+        test_loss_hard = tensor([])
+        for i in range(a.size(0)):
+            left = a[i].unsqueeze(0)
+            right = t[i].unsqueeze(-1)
+            product = torch.matmul(left, right)
+            test_loss_hard = torch.cat((test_loss_hard, product), dim=0)
+        return test_loss_soft, torch.sum(test_loss_hard)
 
     def batchPGLoss(self, inp, target, reward):
         """

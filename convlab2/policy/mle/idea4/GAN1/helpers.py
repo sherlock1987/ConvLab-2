@@ -100,7 +100,7 @@ def prepare_discriminator_data(pos_samples, neg_samples, ratio_pos, ratio_neg, g
     if gpu:
         inp = inp.cuda()
         target = target.cuda()
-
+    # Todo: what about extra dataset.
     return inp, target
 
 

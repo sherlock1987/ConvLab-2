@@ -9,19 +9,6 @@ import numpy as np
 import torch
 import random
 
-# set seed, do not change the line stuff.
-seed=2
-
-torch.manual_seed(seed)
-torch.cuda.manual_seed(seed)
-torch.cuda.manual_seed_all(seed)
-np.random.seed(seed)  # Numpy module.
-random.seed(seed)  # Python random module.
-torch.manual_seed(seed)
-torch.backends.cudnn.benchmark = False
-torch.backends.cudnn.deterministic = True
-print("current seed is {}".format(seed))
-
 from torch import multiprocessing as mp
 from convlab2.dialog_agent.agent import PipelineAgent
 from convlab2.dialog_agent.env import Environment
@@ -165,6 +152,18 @@ def update(env, policy, batchsz, epoch, process_num):
     batchsz_real = s.size(0)
     policy.update(epoch, batchsz_real, s, a, r, mask)
 
+# set seed, do not change the line stuff.
+seed=2
+# set seed, not over here.
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+np.random.seed(seed)  # Numpy module.
+random.seed(seed)  # Python random module.
+torch.manual_seed(seed)
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
+print("current seed is {}".format(seed))
 
 if __name__ == '__main__':
     parser = ArgumentParser()

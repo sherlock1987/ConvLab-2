@@ -37,8 +37,8 @@ do
 	"load": "save/best"
 }
 '> ${config_path}
-  sed -i '13d' ${RL_path}
-  sed -i "13i seed=${process_id}" ${RL_path}
+  sed -i '156d' ${RL_path}
+  sed -i "156i seed=${process_id}" ${RL_path}
   CUDA_VISIBLE_DEVICES=${device} python ${RL_path} --load_path ${load_path} --load_path_reward_d ${root}/convlab2/policy/mle/idea4/GAN1/Dis/pretrain_D.mdl --load_path_reward_g ${root}/convlab2/policy/mle/idea4/GAN1/Gen/pretrain_G.mdl
   echo "${log_path}"
   echo " "

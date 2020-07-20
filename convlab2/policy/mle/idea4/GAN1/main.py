@@ -6,6 +6,7 @@ Potential Bugs:
     2. Check the predict action.
 """
 # Todo, wirte down the log file. And make this python available to run on server.
+# Todo, write down the args stuff, so easy for me...
 from __future__ import print_function
 from math import ceil
 import numpy as np
@@ -46,8 +47,9 @@ MAX_SEQ_LEN = 20
 START_LETTER = 0
 BATCH_SIZE_G = 32
 BATCH_SIZE_D = 32
-MLE_TRAIN_EPOCHS = 50
+MLE_TRAIN_EPOCHS = 60
 ADV_TRAIN_EPOCHS = 50
+SAVE_EPOCH = 5
 
 GEN_EMBEDDING_DIM = 32
 GEN_HIDDEN_DIM = 32
@@ -64,7 +66,7 @@ data_path = os.path.join(root_dir, "mle/processed_data")
 # convlab2/policy/mle/idea4/model/VAE_20_123.pol.mdl
 # wrong VAE model, GRU not work at all
 # load_VAE_path = os.path.join(root_dir, "mle/idea4/model/VAE_20_123.pol.mdl")
-load_VAE_path = os.path.join(root_dir, "mle/idea4/model/VAE_39_complete.pol.mdl")
+# load_VAE_path = os.path.join(root_dir, "mle/idea4/model/VAE_39_complete.pol.mdl")
 
 # path stuff
 pretrained_gen_path = os.path.join(root_dir, "mle/idea4/GAN1/Gen")
@@ -510,7 +512,7 @@ if __name__ == '__main__':
     ts = time.strftime('%Y-%b-%d-%H:%M:%S')
     gen = Generator(GEN_EMBEDDING_DIM, GEN_HIDDEN_DIM, VOCAB_SIZE, MAX_SEQ_LEN, gpu = CUDA)
     dis = Discriminator()
-    gen.load_VAE(load_VAE_path)
+    # gen.load_VAE(load_VAE_path)
     print("load VAE model successfully")
     if CUDA:
         gen = gen.cuda()
@@ -532,11 +534,11 @@ if __name__ == '__main__':
     """
     print('Starting Generator MLE Training...')
     gen_optimizer = optim.Adam(gen.parameters(), lr=gen_lr)
-    # train_generator_MLE(gen, gen_optimizer, datasets, MLE_TRAIN_EPOCHS)
+    train_generator_MLE(gen, gen_optimizer, datasets, MLE_TRAIN_EPOCHS)
     # load again, clear optimizer
-    # torch.save(gen.state_dict(), os.path.join(pretrained_gen_path, "pretrain_G_{}.mdl".format(ts)))
-    gen.load_state_dict(torch.load(os.path.join(pretrained_gen_path, "pretrain_G.mdl")))
-    gen.load_VAE(load_VAE_path)
+    torch.save(gen.state_dict(), os.path.join(pretrained_gen_path, "pretrain_G_{}.mdl".format(ts)))
+    # gen.load_state_dict(torch.load(os.path.join(pretrained_gen_path, "pretrain_G.mdl")))
+    # gen.load_VAE(load_VAE_path)
     # train_generator_MLE(gen, gen_optimizer, datasets, MLE_TRAIN_EPOCHS)
 
     """
@@ -544,9 +546,9 @@ if __name__ == '__main__':
     """
     print('\nStarting Discriminator Training...')
     dis_optimizer = optim.Adam(dis.parameters(), lr = dis_lr)
-    # train_discriminator(dis, dis_optimizer, datasets, gen, sample_num=50000, ratio_pos = 1.0, ratio_neg = 1.0, d_steps= 3, epochs=20)
-    # torch.save(dis.state_dict(), os.path.join(pretrained_dis_path, "pretrain_D_{}.mdl".format(ts)))
-    dis.load_state_dict(torch.load(os.path.join(pretrained_dis_path, "pretrain_D.mdl")))
+    train_discriminator(dis, dis_optimizer, datasets, gen, sample_num=50000, ratio_pos = 1.0, ratio_neg = 1.0, d_steps= 3, epochs=20)
+    torch.save(dis.state_dict(), os.path.join(pretrained_dis_path, "pretrain_D_{}.mdl".format(ts)))
+    # dis.load_state_dict(torch.load(os.path.join(pretrained_dis_path, "pretrain_D.mdl")))
 
     # ADVERSARIAL TRAINING
     print('\nStarting Adversarial Training...')
@@ -557,12 +559,12 @@ if __name__ == '__main__':
         print('\nAdversarial Training Generator : ')
         sys.stdout.flush()
         train_generator_PG(gen, dis, datasets, num_samples = 30000, epochs=7)
-        torch.save(gen.state_dict(), os.path.join(pretrained_gen_path, "G_{}.mdl".format(epoch)))
+        if epoch % SAVE_EPOCH == 0: torch.save(gen.state_dict(), os.path.join(pretrained_gen_path, "G_{}.mdl".format(epoch)))
 
         # TRAIN DISCRIMINATOR
         print('\nAdversarial Training Discriminator : ')
         train_discriminator(dis, dis_optimizer, datasets, gen, sample_num=50000, ratio_pos=1.1, ratio_neg=1.0, d_steps=3, epochs=10)
-        torch.save(dis.state_dict(), os.path.join(pretrained_dis_path, "D_{}.mdl".format(epoch)))
+        if epoch % SAVE_EPOCH == 0: torch.save(dis.state_dict(), os.path.join(pretrained_dis_path, "D_{}.mdl".format(epoch)))
         print()
         test_g_d(gen, dis, real_data_samples=datasets)
 

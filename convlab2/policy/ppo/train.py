@@ -180,9 +180,6 @@ if __name__ == '__main__':
     # save_path = os.path.join(root_dir, sub_root, args.save_path, str(args.save_st_path))
     # print(save_path)
     # if not os.path.exists(save_path): os.makedirs(save_path)
-
-
-
     # simple rule DST
     dst_sys = RuleDST()
 

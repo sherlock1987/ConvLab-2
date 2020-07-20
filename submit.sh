@@ -18,6 +18,7 @@ do
   {
     sub_save_path="save"/${time}/${process_id}
     complete_sub_save_path=${root}/"convlab2/policy/ppo/idea4/"${sub_save_path}
+    new_RL_path=${root}/"convlab2/policy/ppo/train_${process_id}.py"
     sleep $[process_id*20]
     echo "Begin processing in ${sub_save_path}..., result is in ${log_path}"
     echo '{
@@ -38,10 +39,9 @@ do
 '> ${config_path}
   sed -i '156d' ${RL_path}
   sed -i "156i seed=${process_id}" ${RL_path}
-  cp ${RL_path} ${root}/"convlab2/policy/ppo/train_${process_id}.py"
-  CUDA_VISIBLE_DEVICES=${device} python ${RL_path} --load_path ${load_path} --load_path_reward_d ${root}/convlab2/policy/mle/idea4/GAN1/Dis/pretrain_D.mdl --load_path_reward_g ${root}/convlab2/policy/mle/idea4/GAN1/Gen/pretrain_G.mdl
+  cp ${RL_path} ${new_RL_path}
+  CUDA_VISIBLE_DEVICES=${device} python ${new_RL_path} --load_path ${load_path} --load_path_reward_d ${root}/convlab2/policy/mle/idea4/GAN1/Dis/pretrain_D.mdl --load_path_reward_g ${root}/convlab2/policy/mle/idea4/GAN1/Gen/pretrain_G.mdl
   echo "${log_path}"
-  echo " "
   python ${Eval_path} --model_name "PPO" --evluate_in_dir True --model_path_root ${complete_sub_save_path} --log_res_path ${log_path}
   }&
 done

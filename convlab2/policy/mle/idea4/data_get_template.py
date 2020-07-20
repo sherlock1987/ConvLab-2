@@ -306,9 +306,9 @@ def load_data(part_which):
     return data_list[part_which], state_whole[part_which], terminate[part_which]
 
 # how to use?
-# get_data(part_which="train")
-# get_data(part_which="val")
-# get_data(part_which="test")
+get_data(part_which="train")
+get_data(part_which="val")
+get_data(part_which="test")
 # print(collections)
 # data_list, state_whole, terminate = load_data(part_which="train")
 # get_elementwise_fake("train")

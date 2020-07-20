@@ -1,8 +1,7 @@
 #!/bin/bash
-#1. seed, the saving dir(seed)
-#1.1 write stuff to config file
-#2. evaluation.py ts write down the result into the same file
-#3. note the process_num
+# set random seed, save python file in different seed.
+# run RL , and load reward model
+# evaluate models in dir
 time=$(date "+%Y-%m-%d--%H:%M:%S")
 root=`pwd`
 device=3
@@ -39,6 +38,7 @@ do
 '> ${config_path}
   sed -i '156d' ${RL_path}
   sed -i "156i seed=${process_id}" ${RL_path}
+  cp ${RL_path} ${root}/"convlab2/policy/ppo/train_${process_id}.py"
   CUDA_VISIBLE_DEVICES=${device} python ${RL_path} --load_path ${load_path} --load_path_reward_d ${root}/convlab2/policy/mle/idea4/GAN1/Dis/pretrain_D.mdl --load_path_reward_g ${root}/convlab2/policy/mle/idea4/GAN1/Gen/pretrain_G.mdl
   echo "${log_path}"
   echo " "

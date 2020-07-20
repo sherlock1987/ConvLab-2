@@ -18,7 +18,7 @@ do
   {
     sub_save_path="save"/${time}/${process_id}
     complete_sub_save_path=${root}/"convlab2/policy/ppo/idea4/"${sub_save_path}
-    new_RL_path=${root}/"convlab2/policy/ppo/train_${process_id}.py"
+    new_RL_path=${root}/"convlab2/policy/ppo/train_${process_id}_${time}.py"
     sleep $[process_id*20]
     echo "Begin processing in ${sub_save_path}..., result is in ${log_path}"
     echo '{

@@ -193,10 +193,10 @@ class PPO(Policy):
         :param a: action, Tensor, [b,209]
         :param mask: indicates ending for 0 otherwise 1, Tensor, [b]
         """
-        # reward_predict_d = self.reward_predictor_idea4_d.get_reward(r, s, a, mask)
-        reward_predict_g = self.reward_predictor_idea4_g.get_reward(r, s, a, mask)
+        reward_predict_d = self.reward_predictor_idea4_d.get_reward(r, s, a, mask)
+        # reward_predict_g = self.reward_predictor_idea4_g.get_reward(r, s, a, mask)
         # reward_predict = (reward_predict_d+reward_predict_g)/2
-        return reward_predict_g
+        return reward_predict_d
 
     def update(self, epoch, batchsz, s, a, r, mask):
         # get estimated V(s) and PI_old(s, a)
@@ -208,7 +208,7 @@ class PPO(Policy):
         # estimate advantage and v_target according to GAE and Bellman Equation
         # leave the V alone, just forget about it.
         # r = self.reward_estimate(r, s, a, mask)
-        # r = self.reward_estimate_idea4(r, s, a, mask)
+        r = self.reward_estimate_idea4(r, s, a, mask)
         A_sa, v_target = self.est_adv(r, v, mask)
 
         for i in range(self.update_round):

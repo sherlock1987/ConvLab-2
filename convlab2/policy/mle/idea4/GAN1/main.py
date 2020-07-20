@@ -91,8 +91,8 @@ def train_generator_MLE(gen, gen_opt, real_data_samples, epochs = 10):
     4. No sample, since this is MLE training process.
     5. 30 epoch seems not enough. the loss is still going downer
     """
-    # seq_train = ["train", "val", "test"]
-    seq_train = ["val", "train", "test"]
+    seq_train = ["train", "val", "test"]
+    # seq_train = ["val", "train", "test"]
     for epoch in range(epochs):
         gen.train()
         print('epoch %d : ' % (epoch + 1), end='')

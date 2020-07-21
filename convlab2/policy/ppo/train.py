@@ -172,7 +172,7 @@ if __name__ == '__main__':
     # parser.add_argument("--save_st_path", type = int, default=0, help="sub path of model to save")
     parser.add_argument("--load_path_reward_d", default="", help="path of model to load from reward machine")
     parser.add_argument("--load_path_reward_g", default="", help="path of model to load from reward machine")
-    parser.add_argument("--batchsz", type=int, default=1024, help="batch size of trajactory sampling")
+    parser.add_argument("--batchsz", type=int, default=40, help="batch size of trajactory sampling")
     parser.add_argument("--epoch", type=int, default=40 , help="number of epochs to train")
     parser.add_argument("--process_num", type=int, default=1, help="number of processes of trajactory sampling")
     args = parser.parse_args()

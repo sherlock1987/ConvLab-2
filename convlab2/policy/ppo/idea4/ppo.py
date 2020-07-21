@@ -14,7 +14,6 @@ from convlab2.policy.vector.vector_multiwoz import MultiWozVector
 from convlab2.util.file_util import cached_path
 import zipfile
 import sys
-from convlab2.policy.mle.idea9.model_dialogue import dialogue_VAE
 from convlab2.policy.mle.idea4.GAN1.discriminator import Discriminator
 from convlab2.policy.mle.idea4.GAN1.generator import Generator
 
@@ -58,7 +57,7 @@ class PPO(Policy):
             self.value_optim = optim.Adam(self.value.parameters(), lr=cfg['value_lr'])
 
         self.reward_predictor_idea4_d = Discriminator()
-        self.reward_predictor_idea4_g = Generator(549, 209)
+        self.reward_predictor_idea4_g = Generator()
 
     def predict(self, state):
         """

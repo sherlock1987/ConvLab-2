@@ -41,7 +41,9 @@ torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
 
 # Global Variable
-GAN_step = 0
+G_GAN_step = 0
+D_GAN_step = 0
+
 D_train_step = 0
 G_train_step = 0
 tracker = collections.defaultdict(list)
@@ -174,7 +176,7 @@ def train_generator_MLE(gen, gen_opt, real_data_samples, epochs = 10):
     print('test_eval- = %.4f, test_eval* = %.4f (%.2f act)' % (val_eval_1, val_eval_2, target_score))
     writer.add_scalar("G/test_eval-", val_eval_1, 0)
     writer.add_scalar("G/test_eval*", val_eval_2, 0)
-
+# G_train_step
 def train_generator_PG(gen, dis, real_data_samples, G_D_lr = 1e-4, num_samples = 5000, num_val_sample = 2000, epochs=10):
     """
     :param gen:
@@ -193,7 +195,7 @@ def train_generator_PG(gen, dis, real_data_samples, G_D_lr = 1e-4, num_samples =
     prev_list = []
     bf_temp = torch.tensor([], requires_grad=False).to(DEVICE)
     target_temp = torch.tensor([]).to(DEVICE)
-    global GAN_step, G_train_step
+    global G_train_step
     val_oracle = oracle_sample(real_data_samples["val"], num_val_sample)
 
     for iteration, ele in enumerate(val_oracle):
@@ -216,8 +218,9 @@ def train_generator_PG(gen, dis, real_data_samples, G_D_lr = 1e-4, num_samples =
     val_loss = reward.data.item()
     val_loss /= float(iteration)
     print('Val_Reward = %.4f' % (val_loss))
-    writer.add_scalar("G/val_reward_1", val_loss, GAN_step)
-    GAN_step += 1
+    writer.add_scalar("G/val_reward", val_loss, G_train_step)
+    G_train_step += 1
+    # GAN_step += 1
     # empty the clip
     prev_list = []
     bf_temp = tensor([])
@@ -253,6 +256,7 @@ def train_generator_PG(gen, dis, real_data_samples, G_D_lr = 1e-4, num_samples =
                 # max reward = min -reward (0 ~ 1)
                 reward = - dis(dis_input)
                 reward = torch.sum(reward)
+                dis.zero_grad()
                 reward.backward()
                 # for name, param in gen.named_parameters():
                 #     print(name)
@@ -305,7 +309,7 @@ def train_generator_PG(gen, dis, real_data_samples, G_D_lr = 1e-4, num_samples =
         prev_list = []
         bf_temp = tensor([])
         target_temp = tensor([])
-
+# D_train_step val_D
 def train_discriminator(discriminator, dis_opt, real_data_samples, generator, sample_num, ratio_pos = 1.0 ,ratio_neg = 1.0, d_steps = 1, epochs = 30):
     """
     :param discriminator:
@@ -368,6 +372,7 @@ def train_discriminator(discriminator, dis_opt, real_data_samples, generator, sa
                 inp = inp.float()
                 out = discriminator(inp)
                 loss = loss_fn(out, target)
+                generator.zero_grad()
                 loss.backward()
                 dis_opt.step()
 
@@ -466,12 +471,12 @@ def train_discriminator(discriminator, dis_opt, real_data_samples, generator, sa
                 val_eval /= (num_val_sample + num_val_sample*(ratio_pos /ratio_neg))/10
 
             print('Train: loss = %.4f, eval = %.4f, pos:neg=[%.2f : %.2f]    Val: loss = %.4f, eval = %.4f, pos:neg=[%.2f : %.2f]' % (total_loss, total_eval, total_pos_pred, total_neg_pred, loss_val, val_eval, val_pos_pred, val_neg_pred))
-            writer.add_scalar("D/val_loss", total_loss, D_train_step)
-            writer.add_scalar("D/val_eval", total_loss, D_train_step)
-            writer.add_scalar("D/val_pos", total_loss, D_train_step)
-            writer.add_scalar("D/val_neg", total_loss, D_train_step)
+            writer.add_scalar("D/val_loss", loss_val, D_train_step)
+            writer.add_scalar("D/val_eval", val_eval, D_train_step)
+            writer.add_scalar("D/val_pos", val_pos_pred, D_train_step)
+            writer.add_scalar("D/val_neg", val_neg_pred, D_train_step)
             D_train_step += 1
-
+# GAN_step test
 def test_g_d(gen, dis, real_data_samples):
     """
     :param gen: current G
@@ -480,7 +485,7 @@ def test_g_d(gen, dis, real_data_samples):
     :return: score of G(batchEVAL) and D(score)
     """
     global GAN_step
-    GAN_step += 1
+    # test Gen
     gen.eval()
     sys.stdout.flush()
     prev_list = []
@@ -552,6 +557,8 @@ def test_g_d(gen, dis, real_data_samples):
     writer.add_scalar("D/test_eval", test_eval, GAN_step)
     writer.add_scalar("D/test_pos", test_pos_pred, GAN_step)
     writer.add_scalar("D/test_neg", test_neg_pred, GAN_step)
+    GAN_step += 1
+
 
 # MAIN
 if __name__ == '__main__':
@@ -632,7 +639,7 @@ if __name__ == '__main__':
 
         # TRAIN DISCRIMINATOR
         print('\nAdversarial Training Discriminator : ')
-        train_discriminator(dis, dis_optimizer, datasets, gen, sample_num=50000, ratio_pos=1.1, ratio_neg=1.0, d_steps=3, epochs=10)
+        train_discriminator(dis, dis_optimizer, datasets, gen, sample_num=50000, ratio_pos=1.1, ratio_neg=1.0, d_steps=1, epochs=2)
         if epoch % args.save_epoch == 0: torch.save(dis.state_dict(), os.path.join(pretrained_dis_path, "D_{}.mdl".format(epoch)))
         print()
         test_g_d(gen, dis, real_data_samples=datasets)

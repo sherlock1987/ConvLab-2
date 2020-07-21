@@ -260,6 +260,7 @@ def train_generator_PG(gen, dis, real_data_samples, G_D_lr = 1e-4, num_samples =
                 # max reward = min -reward (0 ~ 1)
                 reward = - dis(dis_input)
                 reward = torch.sum(reward)
+                dis.zero_grad()
                 reward.backward()
                 # for name, param in gen.named_parameters():
                 #     print(name)
@@ -372,7 +373,9 @@ def train_discriminator(discriminator, dis_opt, real_data_samples, generator, sa
                 inp = inp.float()
                 out = discriminator(inp)
                 loss = loss_fn(out, target)
+                generator.zero_grad()
                 loss.backward()
+                # clear grade
                 dis_opt.step()
 
                 # print model collapse
@@ -550,7 +553,7 @@ if __name__ == '__main__':
     ts = time.strftime('%Y-%b-%d-%H:%M:%S')
     gen = Generator(GEN_EMBEDDING_DIM, GEN_HIDDEN_DIM, VOCAB_SIZE, MAX_SEQ_LEN, gpu = CUDA)
     dis = Discriminator()
-    gen.load_VAE(load_VAE_path)
+    # gen.load_VAE(load_VAE_path)
     print("load VAE model successfully")
     if CUDA:
         gen = gen.cuda()

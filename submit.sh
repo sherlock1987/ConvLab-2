@@ -40,7 +40,7 @@ do
   sed -i '156d' ${RL_path}
   sed -i "156i seed=${process_id}" ${RL_path}
   cp ${RL_path} ${new_RL_path}
-  CUDA_VISIBLE_DEVICES=${device} python ${new_RL_path} --load_path ${load_path} --load_path_reward_d ${root}/convlab2/policy/mle/idea4/GAN1/Dis/pretrain_D.mdl --load_path_reward_g ${root}/convlab2/policy/mle/idea4/GAN1/Gen/pretrain_G.mdl
+  CUDA_VISIBLE_DEVICES=${device} python ${new_RL_path} --batchsz 1024 --epoch 60 --load_path ${load_path} --load_path_reward_d ${root}/convlab2/policy/mle/idea4/GAN1/Dis/pretrain_D.mdl --load_path_reward_g ${root}/convlab2/policy/mle/idea4/GAN1/Gen/pretrain_G.mdl
   echo "${log_path}"
   python ${Eval_path} --model_name "PPO" --evluate_in_dir True --model_path_root ${complete_sub_save_path} --log_res_path ${log_path}
   }&

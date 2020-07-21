@@ -6,7 +6,6 @@ import argparse
 import numpy as np
 from multiprocessing import cpu_count
 from tensorboardX import SummaryWriter
-from torch.utils.data import DataLoader
 from collections import OrderedDict, defaultdict
 import pickle
 from convlab2.policy.mle.idea4.utils import expierment_name
@@ -16,6 +15,7 @@ import sys
 # set name stuff.
 device = "cuda" if torch.cuda.is_available() else "cpu"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 sys.path.append(root_dir)
 data_path = os.path.join(root_dir, "policy/mle/processed_data")
@@ -30,10 +30,10 @@ Training
     train
     val
         untill val is going higher for 2 epoches, takes the best one
-        test
+    
+    test
 2. Training on D and G, using VAE.
 """
-
 seed = 1
 torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
@@ -43,6 +43,7 @@ random.seed(seed)  # Python random module.
 torch.manual_seed(seed)
 torch.backends.cudnn.benchmark = False
 torch.backends.cudnn.deterministic = True
+
 
 def main(args):
     ts = time.strftime('%Y-%b-%d-%H:%M:%S', time.gmtime())
@@ -54,7 +55,7 @@ def main(args):
         # with open(os.path.join(data_path, 'sa_{}.pkl'.format(split)), 'rb') as f:
         with open(os.path.join(data_path, 'sa_element_{}_real.pkl'.format(split)), 'rb') as f:
             datasets[split] = pickle.load(f)[split]
-
+    # datasets["train"] = datasets["val"]
     model = dialogue_VAE(
         embedding_size=args.embedding_size,
         rnn_type=args.rnn_type,
@@ -73,7 +74,7 @@ def main(args):
         raise Exception
 
     if args.tensorboard_logging:
-        writer = SummaryWriter(os.path.join(args.logdir, expierment_name(args,ts)))
+        writer = SummaryWriter(os.path.join(args.logdir, expierment_name(args, ts)))
         writer.add_text("model", str(model))
         writer.add_text("args", str(args))
         writer.add_text("ts", ts)
@@ -95,7 +96,7 @@ def main(args):
     Reconstruction_loss = torch.nn.BCEWithLogitsLoss(reduction="sum", pos_weight=pos_weights)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     #Reconstruction_loss = FocalLoss(549)
-    def loss_fn(logp, target, length, mean, logv, anneal_function, step, k, x0):
+    def loss_fn(logp, target, length, mean, logv, anneal_function, step, k, x0, sorted_lengths):
 
         # cut-off unnecessary padding from target, and flatten
         # target = target[:, :torch.max(length).item()].contiguous().view(-1)
@@ -103,8 +104,11 @@ def main(args):
         
         # Negative Log Likelihood
         # NLL_loss = NLL(logp, target)
-        loss = Reconstruction_loss(logp, target)
-
+        loss = 0.
+        bs = logp.size(0)
+        for i in range(bs):
+            len_cur = sorted_lengths[i]
+            loss += Reconstruction_loss(logp[i][:len_cur], target[i][:len_cur])
         # KL Divergence, in a inverse way, the lower, the better.
         KL_loss = -0.5 * torch.sum(1 + logv - mean.pow(2) - logv.exp())
         KL_weight = kl_anneal_function(anneal_function, step, k, x0)
@@ -126,13 +130,10 @@ def main(args):
             temp.append(element.to(device))
             max_len = max(max_len, element.size(1))
             if (iteration + 1) % args.batch_size == 0:
-                batch_size = len(temp)
-                input, logp, mean, logv, z = model(temp)
+                input, logp, mean, logv, z, sorted_lengths = model(temp)
                 # loss calculation
-                NLL_loss, KL_loss, KL_weight = loss_fn(logp, input.to("cuda"), max_len, mean, logv, args.anneal_function, step, args.k, args.x0)
+                NLL_loss, KL_loss, KL_weight = loss_fn(logp, input.to("cuda"), max_len, mean, logv, args.anneal_function, step, args.k, args.x0, sorted_lengths)
                 loss = (NLL_loss + KL_weight * KL_loss)
-                # recording for everything.
-                tracker_test['ELBO'] = torch.cat((tracker_test['ELBO'], loss.detach().unsqueeze(0)))
                 # do evaluation in val
                 test_loss = torch.sum(torch.abs((logp > 0.5).type(torch.FloatTensor) - input)).to("cuda")
                 tracker_test['test_diff'] = torch.cat((tracker_test['test_diff'], test_loss.unsqueeze(0)))
@@ -141,11 +142,12 @@ def main(args):
                 max_len = 0
                 batchID += 1
         loss_test = (torch.mean(tracker_test['test_diff']) / args.batch_size).item()
-        print("Test loss:  ", loss_test)
+        print("Test Loss: {}, Evaluation: {}".format(loss, loss_test))
 
     step = 0
     # start from here.
     batchID = 0
+    tracker = defaultdict(tensor)
     for epoch in range(args.epochs):
         # [train, val, test]
         loss_val = 100000
@@ -153,7 +155,6 @@ def main(args):
         for split in splits:
             data_loader = datasets
             # name a tracker for writing logs.
-            tracker = defaultdict(tensor)
             if split == 'train':
                 model.train()
             # val, test will happen in
@@ -165,12 +166,13 @@ def main(args):
             for iteration, element in enumerate(data_loader[split]):
                 temp.append(element.to(device))
                 max_len = max(max_len, element.size(1))
+                # batch of data
                 if (iteration + 1) % args.batch_size == 0:
                     batch_size = len(temp)
-                    input, logp, mean, logv, z = model(temp)
+                    input, logp, mean, logv, z, sorted_lengths = model(temp)
 
                     # loss calculation
-                    NLL_loss, KL_loss, KL_weight = loss_fn(logp, input.to("cuda"), max_len, mean, logv, args.anneal_function, step, args.k, args.x0)
+                    NLL_loss, KL_loss, KL_weight = loss_fn(logp, input.to("cuda"), max_len, mean, logv, args.anneal_function, step, args.k, args.x0, sorted_lengths)
                     loss = (NLL_loss + KL_weight * KL_loss)
 
                     # backward + optimization
@@ -186,7 +188,9 @@ def main(args):
                     if split == "val":
                         # record evaluation
                         test_loss = torch.sum(torch.abs((torch.sigmoid(logp) > 0.5).type(torch.FloatTensor) - input)).to("cuda")
+                        baseline_test_loss = torch.sum(torch.abs(torch.zeros_like(logp).to(device)- input.to(device))).to("cuda")
                         tracker['test_diff'] = torch.cat((tracker['test_diff'], test_loss.unsqueeze(0)))
+                        tracker["test_diff_baseline"] =  torch.cat((tracker['test_diff_baseline'], baseline_test_loss.unsqueeze(0)))
 
                     if args.tensorboard_logging and (batchID + 1) % args.print_every == 0:
                         # write loss after each training batch
@@ -195,20 +199,26 @@ def main(args):
                         writer.add_scalar("%s/KL Loss"%split.upper(), KL_loss.item()/batch_size,  batchID)
                         writer.add_scalar("%s/KL Weight"%split.upper(), KL_weight, batchID)
 
-                    if (batchID+1) % args.print_every == 0: # or iteration+1 == len(data_loader):
+                    if ((batchID+1) % args.print_every == 0) and split == "train": # or iteration+1 == len(data_loader):
                         print("%s Batch %04d/%i, Loss %9.4f, RC-Loss %9.4f, KL-Loss %9.4f, KL-Weight %6.3f"
-                            %(split.upper(), batchID, len(data_loader)-1, loss.item()/batch_size, NLL_loss.item()/batch_size, KL_loss.item()/batch_size, KL_weight))
+                            %(split.upper(), batchID * args.batch_size, len(data_loader[split])-1, loss.item()/batch_size, NLL_loss.item()/batch_size, KL_loss.item()/batch_size, KL_weight))
                     # empty the clip
                     temp = []
                     max_len = 0
                     batchID += 1
 
             # print only after one epoch finished, only for training.
-            if split == "train": print("%s epoch %02d/%i, Inverse Mean ELBO %9.4f"%(split.upper(), epoch, args.epochs, torch.mean(tracker['ELBO'])/args.batch_size ))
+            # To Sum Up
+            if split == "train":
+                print()
+                print("%s epoch %02d/%i, Inverse Mean ELBO %9.4f"%(split.upper(), epoch, args.epochs, torch.mean(tracker['ELBO'])/args.batch_size ))
+                print()
 
             if split == "val":
                 loss_val_curr = (torch.mean(tracker['test_diff']) / args.batch_size).item()
-                print("Val evaluation loss:  ", loss_val_curr)
+                loss_val_curr_baseline = (torch.mean(tracker['test_diff_baseline']) / args.batch_size).item()
+
+                print("Val evaluation:  ", loss_val_curr, " ({})".format(loss_val_curr_baseline))
                 cur_min = min(loss_val, loss_val_curr)
                 # upper time.
                 if loss_val_curr > cur_min:
@@ -237,8 +247,10 @@ def main(args):
             #     checkpoint_path = os.path.join(save_path, "VAE%i.mdl"%(epoch))
             #     torch.save(model.state_dict(), checkpoint_path)
             #     print("Model saved at %s" %checkpoint_path)
+            batchID = 0
     test()
     print("model save at {}".format(save_path))
+    print(tracker)
     torch.save(model.state_dict(), save_path + "/VAE_{}_123.pol.mdl".format(epoch+1))
 
 
@@ -251,7 +263,7 @@ if __name__ == '__main__':
     parser.add_argument('--min_occ', type=int, default=1)
     parser.add_argument('--test', type = bool, default=True)
 
-    parser.add_argument('-ep', '--epochs', type=int, default=1)
+    parser.add_argument('-ep', '--epochs', type=int, default=20)
     parser.add_argument('-bs', '--batch_size', type=int, default=32)
     parser.add_argument('-lr', '--learning_rate', type=float, default=0.001)
 
@@ -269,7 +281,7 @@ if __name__ == '__main__':
     parser.add_argument('-x0', '--x0', type=int, default=2500)
 
     parser.add_argument('-v', '--print_every', type=int, default=100)
-    parser.add_argument('-tb', '--tensorboard_logging', action='store_true')
+    parser.add_argument('-tb', '--tensorboard_logging', type = bool, default= True)
     parser.add_argument('-log', '--logdir', type=str, default='logs')
     parser.add_argument('-bin', '--save_model_path', type=str, default='bin')
     parser.add_argument('-up', '--upper_time', type=int, default=3)

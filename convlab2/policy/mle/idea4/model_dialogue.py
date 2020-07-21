@@ -125,14 +125,21 @@ class dialogue_VAE(nn.Module):
         _, reversed_idx = torch.sort(sorted_idx)
         padded_outputs = padded_outputs[reversed_idx]
         # b,s,_ = padded_outputs.size()
-
+        # outputs_layer = self.sigmoid(padded_outputs)
         outputs_layer = self.output_layer(padded_outputs)
-        # 因为在这个 bce loss里面加了sigmoid，所以就不用担心了。
+        # make pad stuff to zero
+        # outputs_layer = self.extinguish_pad(outputs_layer, sorted_lengths.tolist())
+        # sigmoid is no use, since we have to use this linear part to change the size (dim = -1)
         # z is the distribution.
         # outputs = self.output_layer(padded_outputs)
-        return original_input_tensor, outputs_layer, mean, logv, z
+        return original_input_tensor, outputs_layer, mean, logv, z, sorted_lengths
 
     def pad(self, input, max_len):
+        """
+        :param input:
+        :param max_len:
+        :return: pad_input, pad_input_sort, sorted_length[9,9,8,8,...], sorted_idx
+        """
         output = torch.zeros(size = (len(input), max_len, self.input_size))
 
         len_list = []
@@ -148,6 +155,21 @@ class dialogue_VAE(nn.Module):
         sorted_lengths, sorted_idx = torch.sort(torch.tensor(len_list), descending=True)
         input_sequence = output[sorted_idx]
         return original_input_tensor, input_sequence, sorted_lengths, sorted_idx
+
+    def extinguish_pad(self, input, sorted_length):
+        """
+        :param input: [B, max_len(D), 549]
+        :param sorted_length: list of length_sorted
+        :return: Make the padding to zero.
+        """
+        max_len = input.size(1)
+        # 9 6(0,1,2,3,4,5) 3
+        for i, len in enumerate(sorted_length):
+            len_pad = max_len - len
+            if len_pad != 0:
+                zero_pad = torch.zeros(size=(len_pad, 549))
+                input[i][len:] = zero_pad
+        return input
 
     def compress(self, input):
 

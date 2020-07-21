@@ -14,11 +14,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.Tensor
 
 class Generator(nn.Module):
-    def __init__(self,  hidden_size, output_size, bf_inp_size = 340, a_inp_size = 209, gpu=False):
+    def __init__(self, gpu=False):
         # Todo make this looks a little good.
         super(Generator, self).__init__()
-        self.hidden_size = hidden_size
-        self.output_size = output_size
         self.gpu = gpu
 
         self.embeddings = dialogue_VAE(

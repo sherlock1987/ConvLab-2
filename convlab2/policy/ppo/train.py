@@ -188,8 +188,8 @@ if __name__ == '__main__':
     #policy_sys.load_reward_model('/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/idea4/bin/idea4.pol.mdl')
     # policy_sys.load_reward_model_idea3(args.load_path_reward)
     # policy_sys.load(args.load_path)
-    # policy_sys.load_reward_model_idea4_d(args.load_path_reward_d)
-    # policy_sys.load_reward_model_idea4_g(args.load_path_reward_g)
+    policy_sys.load_reward_model_idea4_d(args.load_path_reward_d)
+    policy_sys.load_reward_model_idea4_g(args.load_path_reward_g)
     # should load three models.
 
     # not use dst

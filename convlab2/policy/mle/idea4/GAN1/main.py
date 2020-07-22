@@ -43,7 +43,7 @@ torch.backends.cudnn.deterministic = True
 # Global Variable
 G_GAN_step = 0
 D_GAN_step = 0
-
+GAN_step = 0
 D_train_step = 0
 G_train_step = 0
 tracker = collections.defaultdict(list)
@@ -177,7 +177,7 @@ def train_generator_MLE(gen, gen_opt, real_data_samples, epochs = 10):
     writer.add_scalar("G/test_eval-", val_eval_1, 0)
     writer.add_scalar("G/test_eval*", val_eval_2, 0)
 # G_train_step
-def train_generator_PG(gen, dis, real_data_samples, G_D_lr = 1e-4, num_samples = 5000, num_val_sample = 2000, epochs=10):
+def train_generator_PG(gen, gen_optimizer, dis, dis_opt, real_data_samples, G_D_lr = 1e-4, num_samples = 5000, num_val_sample = 2000, epochs=10):
     """
     :param gen:
     :param gen_opt:
@@ -217,22 +217,21 @@ def train_generator_PG(gen, dis, real_data_samples, G_D_lr = 1e-4, num_samples =
     #     print(param.grad)
     val_loss = reward.data.item()
     val_loss /= float(iteration)
-    print('Val_Reward = %.4f' % (val_loss))
+    print('val_reward = %.4f' % (val_loss))
     writer.add_scalar("G/val_reward", val_loss, G_train_step)
     G_train_step += 1
-    # GAN_step += 1
+
     # empty the clip
     prev_list = []
     bf_temp = tensor([])
     target_temp = tensor([])
 
     # sample some stuff.
-    data_cur = real_data_samples["train"]
-    # data_cur = real_data_samples["val"]
+    # data_cur = real_data_samples["train"]
+    data_cur = real_data_samples["val"]
     sample_oracle_data = oracle_sample(data_cur, num_samples)
     # set dis no gradient
     dis.eval()
-    gen_optimizer = optim.Adam(gen.parameters(), lr=G_D_lr)
     for epoch in range(epochs):
         gen.train()
         print('epoch %d : ' % (epoch + 1), end='')
@@ -256,13 +255,14 @@ def train_generator_PG(gen, dis, real_data_samples, G_D_lr = 1e-4, num_samples =
                 # max reward = min -reward (0 ~ 1)
                 reward = - dis(dis_input)
                 reward = torch.sum(reward)
-                dis.zero_grad()
                 reward.backward()
-                # for name, param in gen.named_parameters():
+                dis_opt.zero_grad()
+                dis.zero_grad()
+
+                gen_optimizer.step()
+                # for name, param in dis.named_parameters():
                 #     print(name)
                 #     print(param.grad)
-                gen_optimizer.step()
-
                 total_loss += reward.data.item()
                 # empty the clip
                 prev_list = []
@@ -309,13 +309,15 @@ def train_generator_PG(gen, dis, real_data_samples, G_D_lr = 1e-4, num_samples =
         prev_list = []
         bf_temp = tensor([])
         target_temp = tensor([])
+    return gen
 # D_train_step val_D
-def train_discriminator(discriminator, dis_opt, real_data_samples, generator, sample_num, ratio_pos = 1.0 ,ratio_neg = 1.0, d_steps = 1, epochs = 30):
+def train_discriminator(discriminator, dis_opt, real_data_samples, generator, gen_optimizer, sample_num, ratio_pos = 1.0 ,ratio_neg = 1.0, d_steps = 1, epochs = 30):
     """
     :param discriminator:
     :param dis_opt:
     :param real_data_samples:
     :param generator:
+    :param gen_optimizer
     :param sample_num:
     :param ratio_pos: [pos_num: neg_num] = [ratio_pos: ratio_neg]
     :param ratio_neg: [pos_num: neg_num] = [ratio_pos: ratio_neg]
@@ -330,8 +332,8 @@ def train_discriminator(discriminator, dis_opt, real_data_samples, generator, sa
     4. If D performs pretty good, we will update G at more time. I think so!!
     """
     # random dataset
-    data_cur = real_data_samples["train"]
-    # data_cur = real_data_samples["val"]
+    # data_cur = real_data_samples["train"]
+    data_cur = real_data_samples["val"]
     random.shuffle(data_cur)
     # repeat this for d_steps
     global D_train_step
@@ -372,15 +374,22 @@ def train_discriminator(discriminator, dis_opt, real_data_samples, generator, sa
                 inp = inp.float()
                 out = discriminator(inp)
                 loss = loss_fn(out, target)
-                generator.zero_grad()
                 loss.backward()
+                gen_optimizer.zero_grad()
+                generator.zero_grad()
+                # for name, param in generator.named_parameters():
+                #     print(name)
+                #     print(param.grad)
                 dis_opt.step()
 
-                # print model collapse
+                # # print model collapse
                 # for name,param in discriminator.named_parameters():
                 #     if torch.sum(param.grad).item() == 0.:
                 #         print("name: {} is zero grad at epoch {} and batch {}".format(epoch, i, name))
-
+                # print model collapse
+                # for name,param in generator.named_parameters():
+                #     print(name)
+                #     print(param.grad)
                 # push grad moving
                 # for p in discriminator.parameters():
                 #     p.grad[p.grad != p.grad] = 0.0
@@ -476,6 +485,7 @@ def train_discriminator(discriminator, dis_opt, real_data_samples, generator, sa
             writer.add_scalar("D/val_pos", val_pos_pred, D_train_step)
             writer.add_scalar("D/val_neg", val_neg_pred, D_train_step)
             D_train_step += 1
+    return dis
 # GAN_step test
 def test_g_d(gen, dis, real_data_samples):
     """
@@ -512,8 +522,8 @@ def test_g_d(gen, dis, real_data_samples):
     tracker["test_eval*"].append(val_eval_2)
     tracker["average_act"].append(target_score)
     print('TEST: G: test_eval- = %.4f, test_eval* = %.4f (%.2f act)' % (val_eval_1, val_eval_2, target_score), end = "  ")
-    writer.add_scalar("G/test_eval-", val_eval_1, GAN_step)
-    writer.add_scalar("G/test_eval*", val_eval_2, GAN_step)
+    writer.add_scalar("G/test_eval_minus", val_eval_1, GAN_step)
+    writer.add_scalar("G/test_eval_product", val_eval_2, GAN_step)
 
     # testing D
     test_pos_pred = 0
@@ -558,8 +568,11 @@ def test_g_d(gen, dis, real_data_samples):
     writer.add_scalar("D/test_pos", test_pos_pred, GAN_step)
     writer.add_scalar("D/test_neg", test_neg_pred, GAN_step)
     GAN_step += 1
-
-
+    print(GAN_step)
+def test(input):
+    print(input)
+    input+=1
+    return input
 # MAIN
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -571,13 +584,15 @@ if __name__ == '__main__':
 
     # epochs
     parser.add_argument('--MLE_TRAIN_EPOCHS', type=int, default=60)
-    parser.add_argument('--ADV_TRAIN_EPOCHS', type=int, default=2)
+    parser.add_argument('--ADV_TRAIN_EPOCHS', type=int, default=30)
     parser.add_argument('--save_epoch', type=int, default=5)
 
     # lr
     parser.add_argument('--gen_lr', type=float, default=1e-3)
     parser.add_argument('--gen_lr_ad', type=float, default=1e-3)
     parser.add_argument('--dis_lr', type=float, default=1e-3)
+    parser.add_argument('--dis_lr_ad', type=float, default=1e-3)
+
     args = parser.parse_args()
 
     ts = time.strftime('%Y-%b-%d-%H:%M:%S')
@@ -598,8 +613,8 @@ if __name__ == '__main__':
 
     # DATA READING
     print("Starting Loading Data")
-    splits = ['train', 'val']
-    # splits = ['val']
+    # splits = ['train', 'val']
+    splits = ['val']
     if args.test: splits.append("test")
     datasets = {}
     for split in splits:
@@ -629,17 +644,26 @@ if __name__ == '__main__':
     dis.load_state_dict(torch.load(os.path.join(pretrained_dis_path, "pretrain_D.mdl")))
 
     print('\nStarting Adversarial Training...\n')
+    gen_optimizer_ad = optim.Adam(gen.parameters(), lr=args.gen_lr_ad)
+    dis_optimizer_ad = optim.Adam(dis.parameters(), lr = args.dis_lr)
+
+    # input = 1
+    # for i in range(100):
+    #     input = test(input)
+    # quit()
+    test_g_d(gen, dis, real_data_samples=datasets)
+
     for epoch in range(args.ADV_TRAIN_EPOCHS):
         print('\n--------\nEPOCH %d\n--------' % (epoch+1))
         # TRAIN GENERATOR
         print('\nAdversarial Training Generator : ')
         sys.stdout.flush()
-        train_generator_PG(gen, dis, datasets, num_samples = 30000, epochs=7)
+        gen = train_generator_PG(gen, gen_optimizer_ad, dis, dis_optimizer_ad, real_data_samples=datasets, num_samples = 3000, epochs=7)
         if epoch % args.save_epoch == 0: torch.save(gen.state_dict(), os.path.join(pretrained_gen_path, "G_{}.mdl".format(epoch)))
 
         # TRAIN DISCRIMINATOR
         print('\nAdversarial Training Discriminator : ')
-        train_discriminator(dis, dis_optimizer, datasets, gen, sample_num=50000, ratio_pos=1.1, ratio_neg=1.0, d_steps=1, epochs=2)
+        dis = train_discriminator(dis, dis_optimizer_ad, datasets, gen, gen_optimizer, sample_num=5000, ratio_pos=1.1, ratio_neg=1.0, d_steps=1, epochs=2)
         if epoch % args.save_epoch == 0: torch.save(dis.state_dict(), os.path.join(pretrained_dis_path, "D_{}.mdl".format(epoch)))
         print()
         test_g_d(gen, dis, real_data_samples=datasets)

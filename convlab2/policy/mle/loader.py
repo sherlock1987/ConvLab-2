@@ -19,7 +19,6 @@ class ActMLEPolicyDataLoader():
     def __init__(self):
         self.vector = None
 
-
     def _build_data(self, root_dir, processed_dir):
         # whole data over here.
         self.data = {}
@@ -53,7 +52,8 @@ class ActMLEPolicyDataLoader():
                                         self.vector.action_vectorize(action), state['terminated']])
                 self.terminate[part].append(state['terminated'])
                 sys_action = self.vector.action_vectorize(action)
-                action_set.add(str(sys_action))
+
+                action_set.add(str(list(sys_action)))
                 self.state_whole[part].append(state)
                 # current_bf = self.vector.state_vectorize(state)
                 # user_action_vec = current_bf[:79]
@@ -61,6 +61,7 @@ class ActMLEPolicyDataLoader():
                 self.domain[part].append(domain_vec)
                 self.domain_ont_hot[part].append(encoder[str(domain_vec)])
         print(action_set)
+        print(len(action_set))
         os.makedirs(processed_dir)
         for part in ['train', 'val', 'test']:
             with open(os.path.join(processed_dir, '{}.pkl'.format(part)), 'wb') as f:

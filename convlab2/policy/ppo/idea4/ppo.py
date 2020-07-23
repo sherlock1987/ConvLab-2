@@ -207,7 +207,7 @@ class PPO(Policy):
         # estimate advantage and v_target according to GAE and Bellman Equation
         # leave the V alone, just forget about it.
         # r = self.reward_estimate(r, s, a, mask)
-        r = self.reward_estimate_idea4(r, s, a, mask)
+        # r = self.reward_estimate_idea4(r, s, a, mask)
         A_sa, v_target = self.est_adv(r, v, mask)
 
         for i in range(self.update_round):
@@ -218,7 +218,7 @@ class PPO(Policy):
             v_target_shuf, A_sa_shuf, s_shuf, a_shuf, log_pi_old_sa_shuf = v_target[perm], A_sa[perm], s[perm], a[perm], \
                                                                            log_pi_old_sa[perm]
 
-            # 2. get mini-batch for optimizing
+            # 2. get mini-batch for optimizing, this size comes from config.
             optim_chunk_num = int(np.ceil(batchsz / self.optim_batchsz))
             # chunk the optim_batch for total batch
             v_target_shuf, A_sa_shuf, s_shuf, a_shuf, log_pi_old_sa_shuf = torch.chunk(v_target_shuf, optim_chunk_num), \
@@ -336,7 +336,6 @@ class PPO(Policy):
                 self.reward_predictor.load_state_dict(torch.load(policy_mdl, map_location=DEVICE))
                 logging.info('<<dialog policy>> loaded reward model checkpoint from file: {}'.format(policy_mdl))
                 break
-
 
     def load_reward_model_idea4_d(self, filename):
         flag = 0

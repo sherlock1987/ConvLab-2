@@ -60,7 +60,7 @@ class MultiWozVector(Vector):
         for domain in self.belief_domains:
             for slot, value in default_state()['belief_state'][domain.lower()]['semi'].items():
                 self.belief_state_dim += 1
-
+        # this is the dimention of belief state.
         self.state_dim = self.da_opp_dim + self.da_dim + self.belief_state_dim + \
                          len(self.db_domains) + 6 * len(self.db_domains) + 1
 

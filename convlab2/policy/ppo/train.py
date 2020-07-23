@@ -28,7 +28,18 @@ try:
     mp = mp.get_context('spawn')
 except RuntimeError:
     pass
-
+# set seed, do not change the line stuff.
+seed = 2
+# set seed, not over here.
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+np.random.seed(seed)  # Numpy module.
+random.seed(seed)  # Python random module.
+torch.manual_seed(seed)
+torch.backends.cudnn.benchmark = False
+torch.backends.cudnn.deterministic = True
+print("current seed is {}".format(seed))
 def sampler(pid, queue, evt, env, policy, batchsz):
     """
     This is a sampler function, and it will be called by multiprocess.Process to sample data from environment by multiple
@@ -141,7 +152,6 @@ def sample(env, policy, batchsz, process_num):
 def update(env, policy, batchsz, epoch, process_num):
     # sample data asynchronously
     batch = sample(env, policy, batchsz, process_num)
-
     # data in batch is : batch.state: ([1, s_dim], [1, s_dim]...)
     # batch.action: ([1, a_dim], [1, a_dim]...)
     # batch.reward/ batch.mask: ([1], [1]...)
@@ -152,18 +162,7 @@ def update(env, policy, batchsz, epoch, process_num):
     batchsz_real = s.size(0)
     policy.update(epoch, batchsz_real, s, a, r, mask)
 
-# set seed, do not change the line stuff.
-seed=2
-# set seed, not over here.
-torch.manual_seed(seed)
-torch.cuda.manual_seed(seed)
-torch.cuda.manual_seed_all(seed)
-np.random.seed(seed)  # Numpy module.
-random.seed(seed)  # Python random module.
-torch.manual_seed(seed)
-torch.backends.cudnn.benchmark = False
-torch.backends.cudnn.deterministic = True
-print("current seed is {}".format(seed))
+
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -187,7 +186,7 @@ if __name__ == '__main__':
     # policy_sys.load('/home/raliegh/图片/ConvLab-2/convlab2/policy/mle/multiwoz/best_mle')
     #policy_sys.load_reward_model('/dockerdata/siyao/ft_local/ConvLab/convlab2/policy/mle/idea4/bin/idea4.pol.mdl')
     # policy_sys.load_reward_model_idea3(args.load_path_reward)
-    # policy_sys.load(args.load_path)
+    policy_sys.load(args.load_path)
     policy_sys.load_reward_model_idea4_d(args.load_path_reward_d)
     policy_sys.load_reward_model_idea4_g(args.load_path_reward_g)
     # should load three models.
